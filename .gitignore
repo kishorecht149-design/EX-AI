@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Model files (large binaries)
+models/*.task
+models/*.pkl
+
+# Dataset outputs (regenerable)
+dataset/processed_keypoints/keypoints.csv
+dataset/raw_videos/*.mp4
+dataset/raw_videos/*.avi
+dataset/raw_videos/*.mov
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/executed_*.ipynb
