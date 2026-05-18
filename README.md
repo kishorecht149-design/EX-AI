@@ -104,6 +104,27 @@ This opens a browser app with:
 
 For live camera access in production, serve the app over **HTTPS**.
 
+### Render deployment
+
+This repo includes a root `.python-version` file and `render.yaml` because
+`mediapipe==0.10.14` is not compatible with Render's current default Python
+`3.14.3`.
+
+If you deploy on Render:
+
+1. Make sure the service uses Python `3.11.x`
+2. Use the build command:
+
+```bash
+pip install -r requirements.txt
+```
+
+3. Use the start command:
+
+```bash
+streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+```
+
 ### 5. Optional: Run the Desktop Demo
 
 ```bash
