@@ -61,8 +61,11 @@ AI-Exercise-Detection/
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/your-username/AI-Exercise-Detection.git
-cd AI-Exercise-Detection
+python3.11 --version  # recommended
+git clone https://github.com/kuro-cybet/AI-EX.git
+cd AI-EX
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -84,27 +87,24 @@ jupyter notebook notebooks/model_training.ipynb
 Or run from the command line:
 
 ```bash
-python -c "
-import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
-import joblib, os
-
-df = pd.read_csv('dataset/processed_keypoints/keypoints.csv')
-X = df.drop(columns=['label'])
-y = df['label']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-clf = RandomForestClassifier(n_estimators=100, random_state=42)
-clf.fit(X_train, y_train)
-print(classification_report(y_test, y_train[:len(y_test)] if len(y_test) > len(y_train) else clf.predict(X_test)))
-os.makedirs('models', exist_ok=True)
-joblib.dump(clf, 'models/exercise_model.pkl')
-print('Model saved to models/exercise_model.pkl')
-"
+python train_model.py
 ```
 
-### 4. Run the Real-Time Demo
+### 4. Run the Live Web App
+
+```bash
+streamlit run app.py
+```
+
+This opens a browser app with:
+
+- **Live Monitor** — browser camera + live pose, reps, and form status
+- **Image Review** — upload a single frame for analysis
+- **Video Review** — upload a short clip for sampled analysis
+
+For live camera access in production, serve the app over **HTTPS**.
+
+### 5. Optional: Run the Desktop Demo
 
 ```bash
 python demo/run_webcam_demo.py
@@ -133,10 +133,66 @@ dataset/raw_videos/
 Then run:
 
 ```bash
-python dataset/prepare_dataset.py
+python dataset/prepare_dataset.py --frame-skip 5
+python train_model.py
 ```
 
-This will extract 33 MediaPipe keypoints per frame, compute joint angles, and save everything to `dataset/processed_keypoints/keypoints.csv`.
+This will:
+
+- extract 33 MediaPipe keypoints per sampled frame
+- compute the feature vector used by the classifier
+- save metadata such as `video_id`, `source_video`, and `frame_idx`
+- train a model with a **grouped-by-video** split when real workout footage is available
+
+Training outputs are saved to:
+
+- `models/exercise_model.pkl`
+- `models/training_report.json`
+- `models/confusion_matrix.csv`
+
+Using `video_id` in the split is important because it avoids leaking frames
+from the same source video into both train and test sets, which would make
+the reported accuracy look better than real-world performance.
+
+## 🏋️ Real-Data Workflow
+
+For better workout detection than the synthetic baseline, use real clips for
+each class:
+
+1. Record or collect multiple short videos per class with different people,
+   camera heights, clothes, lighting conditions, and room setups.
+2. Place them in:
+
+```text
+dataset/raw_videos/
+  squat_correct/
+  squat_incorrect/
+  pushup_correct/
+  pushup_incorrect/
+  lunge_correct/
+  lunge_incorrect/
+  plank_correct/
+  plank_incorrect/
+```
+
+3. Extract features:
+
+```bash
+python dataset/prepare_dataset.py --frame-skip 5
+```
+
+4. Train and evaluate:
+
+```bash
+python train_model.py --n-estimators 300
+```
+
+5. Review `models/training_report.json` and `models/confusion_matrix.csv`
+   before replacing the live app model.
+
+This real-data path is the highest-leverage way to improve workout recognition.
+Inference smoothing can help, but model quality comes primarily from better
+labeled footage.
 
 ---
 

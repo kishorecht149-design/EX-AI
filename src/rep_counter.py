@@ -31,12 +31,25 @@ class RepCounter:
         self.count: int = 0
         self.state: str = "up"      # 'up' or 'down'
         self.exercise: str = ""
+        self._state_frames: int = 0
+        self._last_rep_at: float = 0.0
 
         # Thresholds (angle in degrees)
         self._thresholds: Dict[str, Dict[str, float]] = {
             "squat": {"down": 100, "up": 160},
             "pushup": {"down": 100, "up": 155},
             "lunge": {"down": 100, "up": 155},
+        }
+
+        self._min_state_frames: Dict[str, int] = {
+            "squat": 2,
+            "pushup": 2,
+            "lunge": 2,
+        }
+        self._min_rep_interval: Dict[str, float] = {
+            "squat": 0.65,
+            "pushup": 0.55,
+            "lunge": 0.75,
         }
 
         # Plank hold tracking
@@ -53,6 +66,8 @@ class RepCounter:
         self.count = 0
         self.state = "up"
         self.exercise = exercise.lower().replace("-", "").replace(" ", "")
+        self._state_frames = 0
+        self._last_rep_at = 0.0
         self._plank_start = 0.0
         self._plank_holding = False
         self.plank_duration = 0.0
@@ -92,12 +107,26 @@ class RepCounter:
         """State-machine update for squat / push-up / lunge."""
         angle = self._get_key_angle(lm)
         thresholds = self._thresholds.get(self.exercise, {"down": 100, "up": 160})
+        min_frames = self._min_state_frames.get(self.exercise, 2)
+        min_interval = self._min_rep_interval.get(self.exercise, 0.65)
+        now = time.time()
 
         if self.state == "up" and angle < thresholds["down"]:
-            self.state = "down"
+            self._state_frames += 1
+            if self._state_frames >= min_frames:
+                self.state = "down"
+                self._state_frames = 0
+        elif self.state == "up":
+            self._state_frames = 0
         elif self.state == "down" and angle > thresholds["up"]:
-            self.state = "up"
-            self.count += 1
+            self._state_frames += 1
+            if self._state_frames >= min_frames and (now - self._last_rep_at) >= min_interval:
+                self.state = "up"
+                self.count += 1
+                self._last_rep_at = now
+                self._state_frames = 0
+        elif self.state == "down":
+            self._state_frames = 0
 
         return self.count, self.state
 
@@ -106,8 +135,11 @@ class RepCounter:
         if self.exercise == "pushup":
             # Use elbow angle
             return (elbow_angle(lm, "left") + elbow_angle(lm, "right")) / 2.0
+        if self.exercise == "lunge":
+            # Use the bent "front" knee rather than averaging both legs.
+            return min(knee_angle(lm, "left"), knee_angle(lm, "right"))
         else:
-            # Squat & lunge: use knee angle
+            # Squat: use the average knee angle.
             return (knee_angle(lm, "left") + knee_angle(lm, "right")) / 2.0
 
     # ------------------------------------------------------------------

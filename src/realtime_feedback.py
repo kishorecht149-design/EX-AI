@@ -77,12 +77,20 @@ def run_feedback(source=0, model_path: Optional[str] = None):
         model_path: Optional custom path for the trained model.
     """
     # Initialise components
-    detector = PoseDetector(static_image_mode=False)
+    try:
+        detector = PoseDetector(static_image_mode=False)
+    except Exception as e:
+        print(f"[ERROR] Failed to initialise pose detector: {e}")
+        print(
+            "[ERROR] MediaPipe pose detection may require a desktop OpenGL "
+            "context on this platform. Try running the demo in a local GUI session."
+        )
+        return
     try:
         classifier = ExerciseClassifier(model_path)
     except FileNotFoundError as e:
         print(f"[WARNING] {e}")
-        print("[WARNING] Running without classifier — form analysis only.")
+        print("[WARNING] Running without classifier — pose overlay only.")
         classifier = None
 
     form_analyzer = FormAnalyzer()
@@ -102,12 +110,7 @@ def run_feedback(source=0, model_path: Optional[str] = None):
 
         # Detect pose
         results = detector.detect(frame)
-        landmarks = None
-        if results.pose_landmarks:
-            landmarks = np.array(
-                [[lm.x, lm.y, lm.z, lm.visibility]
-                 for lm in results.pose_landmarks[0]]
-            )
+        landmarks = detector.landmarks_from_results(results)
 
         # Default values
         exercise_name = "detecting..."

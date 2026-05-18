@@ -14,7 +14,7 @@ Supports 8 classes:
 import os
 import joblib
 import numpy as np
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 # Default model path (relative to repository root)
 DEFAULT_MODEL_PATH = os.path.join(
@@ -75,6 +75,14 @@ class ExerciseClassifier:
         proba = self.model.predict_proba(features)[0]
         idx = int(np.argmax(proba))
         return self.classes[idx], float(proba[idx])
+
+    def get_probabilities(self, features: np.ndarray) -> Dict[str, float]:
+        """
+        Return the full class probability distribution for one feature vector.
+        """
+        features = np.array(features).reshape(1, -1)
+        proba = self.model.predict_proba(features)[0]
+        return {label: float(score) for label, score in zip(self.classes, proba)}
 
     def predict_batch(self, X: np.ndarray) -> np.ndarray:
         """

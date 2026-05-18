@@ -11,6 +11,7 @@ build/
 venv/
 env/
 .env/
+.venv/
 
 # IDE
 .vscode/
@@ -27,9 +28,9 @@ models/*.pkl
 
 # Dataset outputs (regenerable)
 dataset/processed_keypoints/keypoints.csv
-dataset/raw_videos/*.mp4
-dataset/raw_videos/*.avi
-dataset/raw_videos/*.mov
+dataset/raw_videos/**/*.mp4
+dataset/raw_videos/**/*.avi
+dataset/raw_videos/**/*.mov
 
 # Jupyter
 .ipynb_checkpoints/

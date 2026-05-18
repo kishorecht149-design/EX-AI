@@ -20,11 +20,13 @@ Usage:
     python dataset/prepare_dataset.py
 """
 
+import argparse
+import glob
 import os
 import sys
-import csv
-import glob
-import numpy as np
+from pathlib import Path
+
+import cv2
 import pandas as pd
 from tqdm import tqdm
 
@@ -78,7 +80,7 @@ def collect_videos():
     return videos
 
 
-def process_videos():
+def process_videos(frame_skip: int = FRAME_SKIP):
     """Main processing loop: videos → features → CSV."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -94,16 +96,26 @@ def process_videos():
         return
 
     feature_names = get_feature_names()
-    header = feature_names + ["label"]
+    metadata_fields = [
+        "label",
+        "exercise",
+        "form",
+        "source_video",
+        "video_id",
+        "frame_idx",
+    ]
+    header = metadata_fields + feature_names
 
     all_rows = []
-    detector = PoseDetector(static_image_mode=True, model_complexity=1)
+    detector = PoseDetector(static_image_mode=True)
 
     for category, files in video_map.items():
         for video_path in tqdm(files, desc=category):
-            import cv2
             cap = cv2.VideoCapture(video_path)
             frame_idx = 0
+            exercise, form = category.rsplit("_", 1)
+            source_name = Path(video_path).name
+            video_id = Path(video_path).stem
 
             while cap.isOpened():
                 ret, frame = cap.read()
@@ -111,18 +123,26 @@ def process_videos():
                     break
 
                 # Skip frames for efficiency
-                if frame_idx % FRAME_SKIP != 0:
+                if frame_idx % frame_skip != 0:
                     frame_idx += 1
                     continue
-                frame_idx += 1
 
                 landmarks = detector.get_landmarks(frame)
                 if landmarks is None:
+                    frame_idx += 1
                     continue
 
                 features = extract_features(landmarks)
-                row = list(features) + [category]
+                row = [
+                    category,
+                    exercise,
+                    form,
+                    source_name,
+                    video_id,
+                    frame_idx,
+                ] + list(features)
                 all_rows.append(row)
+                frame_idx += 1
 
             cap.release()
 
@@ -134,6 +154,7 @@ def process_videos():
     print(f"\n✅ Saved {len(df)} samples to {OUTPUT_CSV}")
     print(f"   Features per sample: {len(feature_names)}")
     print(f"   Classes: {df['label'].nunique()}")
+    print(f"   Unique videos: {df['video_id'].nunique()}")
     print(df["label"].value_counts().to_string())
 
 
@@ -142,4 +163,12 @@ def process_videos():
 # ======================================================================
 
 if __name__ == "__main__":
-    process_videos()
+    parser = argparse.ArgumentParser(description="Extract features from real workout videos")
+    parser.add_argument(
+        "--frame-skip",
+        type=int,
+        default=FRAME_SKIP,
+        help="Sample every Nth frame from each video (default: 5)",
+    )
+    args = parser.parse_args()
+    process_videos(frame_skip=max(1, args.frame_skip))

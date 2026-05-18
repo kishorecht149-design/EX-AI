@@ -1,8 +1,13 @@
 """
 pose_detector.py — MediaPipe Pose Detection Module
 ====================================================
-Wraps Google MediaPipe PoseLandmarker (Tasks API, v0.10.20+) to detect
-33 body landmarks from images, video files, or live webcam frames.
+Wraps MediaPipe pose detection to detect 33 body landmarks from images,
+video files, or live webcam frames.
+
+By default this class uses the stable ``mp.solutions.pose`` backend to
+avoid native runtime crashes seen with the newer Tasks API on some
+desktop environments. Set ``AI_EX_USE_TASKS=1`` to opt into the Tasks
+backend when ``models/pose_landmarker_lite.task`` is available.
 
 Each landmark provides (x, y, z, visibility) in normalised coordinates.
 """
@@ -18,6 +23,7 @@ BaseOptions = mp.tasks.BaseOptions
 PoseLandmarker = mp.tasks.vision.PoseLandmarker
 PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
+LegacyPose = mp.solutions.pose.Pose
 
 # Default model path (relative to project root)
 DEFAULT_MODEL_PATH = os.path.join(
@@ -81,30 +87,50 @@ class PoseDetector:
         """
         self.model_path = model_path or DEFAULT_MODEL_PATH
         self.static_image_mode = static_image_mode
+        self.backend = "solutions"
+        self.landmarker = None
+        self.pose = None
+        self._frame_timestamp_ms = 0
 
-        if not os.path.isfile(self.model_path):
-            raise FileNotFoundError(
-                f"PoseLandmarker model not found at {self.model_path}. "
-                "Download it with:\n"
-                "  python -c \"import urllib.request; "
-                "urllib.request.urlretrieve("
-                "'https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
-                "pose_landmarker_lite/float16/latest/pose_landmarker_lite.task', "
-                "'models/pose_landmarker_lite.task')\""
+        use_tasks_backend = os.environ.get("AI_EX_USE_TASKS") == "1"
+
+        if use_tasks_backend and os.path.isfile(self.model_path):
+            running_mode = (
+                VisionRunningMode.IMAGE if static_image_mode else VisionRunningMode.VIDEO
             )
 
-        running_mode = VisionRunningMode.IMAGE if static_image_mode else VisionRunningMode.VIDEO
+            options = PoseLandmarkerOptions(
+                base_options=BaseOptions(
+                    model_asset_path=self.model_path,
+                    delegate=BaseOptions.Delegate.CPU,
+                ),
+                running_mode=running_mode,
+                num_poses=num_poses,
+                min_pose_detection_confidence=min_detection_confidence,
+                min_tracking_confidence=min_tracking_confidence,
+            )
 
-        options = PoseLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=self.model_path),
-            running_mode=running_mode,
-            num_poses=num_poses,
-            min_pose_detection_confidence=min_detection_confidence,
+            try:
+                self.landmarker = PoseLandmarker.create_from_options(options)
+                self.backend = "tasks"
+                return
+            except Exception as exc:
+                print(
+                    f"[WARNING] Failed to initialise MediaPipe Tasks backend: {exc}"
+                )
+                print("[WARNING] Falling back to MediaPipe solutions Pose backend.")
+        elif use_tasks_backend:
+            print(
+                f"[WARNING] PoseLandmarker model not found at {self.model_path}."
+            )
+            print("[WARNING] Falling back to MediaPipe solutions Pose backend.")
+
+        self.pose = LegacyPose(
+            static_image_mode=static_image_mode,
+            model_complexity=1,
+            min_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
         )
-
-        self.landmarker = PoseLandmarker.create_from_options(options)
-        self._frame_timestamp_ms = 0
 
     # ------------------------------------------------------------------
     # Core detection
@@ -120,15 +146,34 @@ class PoseDetector:
             MediaPipe PoseLandmarkerResult object.
         """
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        if self.backend == "tasks":
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
 
-        if self.static_image_mode:
-            results = self.landmarker.detect(mp_image)
-        else:
+            if self.static_image_mode:
+                return self.landmarker.detect(mp_image)
+
             self._frame_timestamp_ms += 33  # ~30 FPS
-            results = self.landmarker.detect_for_video(mp_image, self._frame_timestamp_ms)
+            return self.landmarker.detect_for_video(mp_image, self._frame_timestamp_ms)
 
-        return results
+        return self.pose.process(rgb)
+
+    @staticmethod
+    def _extract_landmarks(results):
+        """Return the first pose landmark list from either backend."""
+        if results is None:
+            return None
+
+        pose_landmarks = getattr(results, "pose_landmarks", None)
+        if not pose_landmarks:
+            return None
+
+        if isinstance(pose_landmarks, list):
+            return pose_landmarks[0]
+
+        if hasattr(pose_landmarks, "landmark"):
+            return pose_landmarks.landmark
+
+        return None
 
     def get_landmarks(self, frame: np.ndarray) -> Optional[np.ndarray]:
         """
@@ -144,12 +189,17 @@ class PoseDetector:
             np.ndarray of shape (33, 4) or None.
         """
         results = self.detect(frame)
-        if not results.pose_landmarks:
+        return self.landmarks_from_results(results)
+
+    def landmarks_from_results(self, results) -> Optional[np.ndarray]:
+        """Convert backend-specific results into a `(33, 4)` landmark array."""
+        landmark_list = self._extract_landmarks(results)
+        if landmark_list is None:
             return None
 
         landmarks = np.array(
             [[lm.x, lm.y, lm.z, lm.visibility]
-             for lm in results.pose_landmarks[0]]
+             for lm in landmark_list]
         )
         return landmarks
 
@@ -190,11 +240,11 @@ class PoseDetector:
             results = self.detect(frame)
 
         annotated = frame.copy()
-        if not results.pose_landmarks:
+        landmarks = self._extract_landmarks(results)
+        if landmarks is None:
             return annotated
 
         h, w, _ = annotated.shape
-        landmarks = results.pose_landmarks[0]
 
         # Draw connections
         for start_idx, end_idx in self.POSE_CONNECTIONS:
@@ -246,7 +296,10 @@ class PoseDetector:
     # ------------------------------------------------------------------
     def close(self):
         """Release MediaPipe resources."""
-        self.landmarker.close()
+        if self.landmarker is not None:
+            self.landmarker.close()
+        if self.pose is not None:
+            self.pose.close()
 
     def __enter__(self):
         return self
