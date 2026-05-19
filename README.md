@@ -125,6 +125,16 @@ pip install -r requirements.txt
 streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
 ```
 
+If `models/exercise_model.pkl` is missing in production, the app now
+bootstraps itself by:
+
+1. generating a fallback synthetic dataset if needed
+2. training `models/exercise_model.pkl`
+3. downloading `models/pose_landmarker_lite.task`
+
+This avoids first-boot crashes on hosts where large binary model files are
+not committed to the repository.
+
 ### 5. Optional: Run the Desktop Demo
 
 ```bash

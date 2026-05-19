@@ -11,6 +11,7 @@ import cv2
 import streamlit as st
 from streamlit_webrtc import WebRtcMode, webrtc_streamer
 
+from src.runtime_assets import ensure_runtime_assets
 from src.web_pipeline import ExerciseAnalyzer, LiveExerciseMonitor
 
 
@@ -22,6 +23,12 @@ st.set_page_config(
     page_icon="AI",
     layout="wide",
 )
+
+bootstrap_error = None
+try:
+    ensure_runtime_assets()
+except Exception as exc:
+    bootstrap_error = str(exc)
 
 st.markdown(
     """
@@ -136,6 +143,8 @@ st.markdown(
 
 @st.cache_resource
 def get_upload_analyzer() -> ExerciseAnalyzer:
+    if bootstrap_error is not None:
+        raise RuntimeError(bootstrap_error)
     analyzer = ExerciseAnalyzer()
     atexit.register(analyzer.close)
     return analyzer
@@ -204,6 +213,8 @@ class LiveCameraProcessor:
     """WebRTC processor that runs the live exercise monitor."""
 
     def __init__(self) -> None:
+        if bootstrap_error is not None:
+            raise RuntimeError(bootstrap_error)
         self.monitor = LiveExerciseMonitor()
         self._applied_counter_version = -1
 
@@ -291,6 +302,12 @@ st.caption(
     "For live monitoring, the browser needs camera permission. In production, "
     "deploy over HTTPS so camera access works consistently."
 )
+
+if bootstrap_error is not None:
+    st.error(
+        "Startup bootstrap failed while preparing model assets for deployment:\n\n"
+        f"{bootstrap_error}"
+    )
 
 live_tab, image_tab, video_tab = st.tabs(
     ["Live Monitor", "Image Review", "Video Review"]
