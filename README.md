@@ -116,7 +116,7 @@ If you deploy on Render:
 2. Use the build command:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt && python dataset/generate_synthetic.py --samples 300 && python train_model.py --n-estimators 120
 ```
 
 3. Use the start command:
@@ -125,7 +125,17 @@ pip install -r requirements.txt
 streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
 ```
 
-If `models/exercise_model.pkl` is missing in production, the app now
+This repo now handles model generation in two ways:
+
+1. Render build step:
+
+- installs dependencies
+- generates fallback synthetic training data
+- trains `models/exercise_model.pkl`
+
+2. Runtime fallback:
+
+If `models/exercise_model.pkl` is still missing in production, the app
 bootstraps itself by:
 
 1. generating a fallback synthetic dataset if needed
