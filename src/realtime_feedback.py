@@ -98,57 +98,95 @@ def run_feedback(source=0, model_path: Optional[str] = None):
 
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
-        print(f"Error: cannot open video source '{source}'")
+        print(f"\n[ERROR] Cannot open video source '{source}'")
         return
 
-    print("Press 'q' to quit.")
+    print("\n" + "=" * 50)
+    print("  Booting webcam & letting sensor warm up...")
+    print("=" * 50)
+    
+    # 1. Warm-up loop: Mac FaceTime cameras often return empty frames (ret=False) during the first 0.5s of boot.
+    # We retry up to 25 times with a small delay so we don't exit instantly!
+    import time
+    warmup_success = False
+    frame = None
+    for attempt in range(25):
+        ret, frame = cap.read()
+        if ret and frame is not None and frame.size > 0:
+            warmup_success = True
+            print(f"  [SUCCESS] Camera initialized successfully on attempt {attempt + 1}!")
+            break
+        time.sleep(0.08)
+
+    if not warmup_success:
+        print("\n" + "!" * 50)
+        print("  [ERROR] FAILED TO READ IMAGE FRAMES FROM CAMERA")
+        print("!" * 50)
+        print("\n  This usually happens on macOS due to OS Camera Permissions.")
+        print("  Please check:")
+        print("  1. Open macOS 'System Settings' -> 'Privacy & Security' -> 'Camera'.")
+        print("  2. Ensure that 'Terminal' (or the app running your command) is turned ON.")
+        print("\n" + "!" * 50)
+        cap.release()
+        return
+
+    print("\nPress 'q' inside the video window to quit.")
+    print("Starting feedback loop...\n")
 
     while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+        try:
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                # If we hit an occasional empty frame, don't crash, just retry or skip.
+                continue
 
-        # Detect pose
-        results = detector.detect(frame)
-        landmarks = detector.landmarks_from_results(results)
+            # Detect pose
+            results = detector.detect(frame)
+            landmarks = detector.landmarks_from_results(results)
 
-        # Default values
-        exercise_name = "detecting..."
-        form_label = "—"
-        confidence = 0.0
-        feedback_msgs = []
-        rep_status = "Reps: 0"
+            # Default values
+            exercise_name = "detecting..."
+            form_label = "—"
+            confidence = 0.0
+            feedback_msgs = []
+            rep_status = "Reps: 0"
 
-        if landmarks is not None:
-            # Extract features & classify
-            features = extract_features(landmarks)
+            if landmarks is not None:
+                # Extract features & classify
+                features = extract_features(landmarks)
 
-            if classifier is not None:
-                label, confidence = classifier.predict_proba(features)
-                exercise_name, form_label = ExerciseClassifier.parse_label(label)
-            else:
-                exercise_name = "unknown"
-                form_label = "—"
+                if classifier is not None:
+                    label, confidence = classifier.predict_proba(features)
+                    exercise_name, form_label = ExerciseClassifier.parse_label(label)
+                else:
+                    exercise_name = "unknown"
+                    form_label = "—"
 
-            # Form analysis (rule-based, works independently of the classifier)
-            if exercise_name not in ("unknown", "detecting..."):
-                feedback_msgs = form_analyzer.analyze(exercise_name, landmarks)
-                rep_counter.update(landmarks, exercise_name)
-                rep_status = rep_counter.get_status()
-            else:
-                rep_status = "Reps: —"
+                # Form analysis (rule-based, works independently of the classifier)
+                if exercise_name not in ("unknown", "detecting..."):
+                    feedback_msgs = form_analyzer.analyze(exercise_name, landmarks)
+                    rep_counter.update(landmarks, exercise_name)
+                    rep_status = rep_counter.get_status()
+                else:
+                    rep_status = "Reps: —"
 
-        # Draw skeleton
-        annotated = detector.draw_landmarks(frame, results)
+            # Draw skeleton
+            annotated = detector.draw_landmarks(frame, results)
 
-        # Draw HUD overlay
-        _draw_overlay(annotated, exercise_name, form_label,
-                      feedback_msgs, rep_status, confidence)
+            # Draw HUD overlay
+            _draw_overlay(annotated, exercise_name, form_label,
+                          feedback_msgs, rep_status, confidence)
 
-        cv2.imshow("AI Exercise Detection", annotated)
+            cv2.imshow("AI Exercise Detection", annotated)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        except Exception as loop_exc:
+            import traceback
+            print("\n[ERROR] An error occurred in the processing loop:")
+            traceback.print_exc()
+            print("Restarting frame processing...\n")
+            time.sleep(0.5)
 
     cap.release()
     cv2.destroyAllWindows()
