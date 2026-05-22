@@ -522,7 +522,20 @@ with live_tab:
         key="exercise-live-monitor",
         mode=WebRtcMode.SENDRECV,
         rtc_configuration={
-            "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+            "iceServers": [
+                {
+                    "urls": ["stun:stun.l.google.com:19302"]
+                },
+                {
+                    "urls": [
+                        "stun:openrelay.metered.ca:80",
+                        "turn:openrelay.metered.ca:80",
+                        "turn:openrelay.metered.ca:443"
+                    ],
+                    "username": "openrelayproject",
+                    "credential": "openrelayproject"
+                }
+            ]
         },
         media_stream_constraints={
             "video": {
