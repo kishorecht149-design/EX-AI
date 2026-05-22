@@ -362,9 +362,16 @@ class LiveCameraProcessor:
         self._applied_counter_version = -1
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
-        image = frame.to_ndarray(format="bgr24")
-        annotated = self.monitor.process_frame(image)
-        return av.VideoFrame.from_ndarray(annotated, format="bgr24")
+        try:
+            image = frame.to_ndarray(format="bgr24")
+            annotated = self.monitor.process_frame(image)
+            return av.VideoFrame.from_ndarray(annotated, format="bgr24")
+        except Exception as exc:  # noqa: BLE001
+            # Never let a processing error kill the WebRTC stream.
+            # Log and pass the original frame through untouched.
+            import traceback
+            traceback.print_exc()
+            return frame
 
     def get_metrics(self):
         return self.monitor.get_metrics()
@@ -523,28 +530,32 @@ with live_tab:
         mode=WebRtcMode.SENDRECV,
         rtc_configuration={
             "iceServers": [
+                # STUN only — no credentials
+                {"urls": ["stun:stun.l.google.com:19302"]},
+                {"urls": ["stun:stun1.l.google.com:19302"]},
+                {"urls": ["stun:stun2.l.google.com:19302"]},
+                {"urls": ["stun:openrelay.metered.ca:80"]},
+                # TURN servers — credentials required
                 {
-                    "urls": ["stun:stun.l.google.com:19302"]
+                    "urls": "turn:openrelay.metered.ca:80",
+                    "username": "openrelayproject",
+                    "credential": "openrelayproject",
                 },
                 {
-                    "urls": [
-                        "stun:openrelay.metered.ca:80",
-                        "turn:openrelay.metered.ca:80",
-                        "turn:openrelay.metered.ca:443"
-                    ],
+                    "urls": "turn:openrelay.metered.ca:443",
                     "username": "openrelayproject",
-                    "credential": "openrelayproject"
-                }
+                    "credential": "openrelayproject",
+                },
+                {
+                    "urls": "turn:openrelay.metered.ca:443?transport=tcp",
+                    "username": "openrelayproject",
+                    "credential": "openrelayproject",
+                },
             ]
         },
-        media_stream_constraints={
-            "video": {
-                "width": {"ideal": 960},
-                "height": {"ideal": 540},
-                "facingMode": "user",
-            },
-            "audio": False,
-        },
+        # Keep constraints maximally compatible — no ideal dimensions that
+        # could throw OverconstrainedError on Safari / mobile / old cameras.
+        media_stream_constraints={"video": True, "audio": False},
         async_processing=True,
         video_processor_factory=LiveCameraProcessor,
     )

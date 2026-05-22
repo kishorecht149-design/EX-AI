@@ -34,22 +34,28 @@ class RepCounter:
         self._state_frames: int = 0
         self._last_rep_at: float = 0.0
 
-        # Thresholds (angle in degrees)
+        # Thresholds (angle in degrees) — STRICT
+        # Squat: must reach <90° at bottom, must stand to >165° at top
+        # Pushup: must reach <85° at bottom (chest near floor), >160° at top
+        # Lunge: front knee must reach <90° at bottom, >160° at top
         self._thresholds: Dict[str, Dict[str, float]] = {
-            "squat": {"down": 100, "up": 160},
-            "pushup": {"down": 100, "up": 155},
-            "lunge": {"down": 100, "up": 155},
+            "squat": {"down": 90,  "up": 165},
+            "pushup": {"down": 85,  "up": 160},
+            "lunge": {"down": 90,  "up": 160},
         }
 
+        # Require 4 consecutive frames in the new state before committing —
+        # eliminates jitter and brief angle spikes from counting as real reps.
         self._min_state_frames: Dict[str, int] = {
-            "squat": 2,
-            "pushup": 2,
-            "lunge": 2,
+            "squat": 4,
+            "pushup": 4,
+            "lunge": 4,
         }
+        # Minimum real-time gap between reps to guard against double-counting
         self._min_rep_interval: Dict[str, float] = {
-            "squat": 0.65,
-            "pushup": 0.55,
-            "lunge": 0.75,
+            "squat": 1.0,
+            "pushup": 0.8,
+            "lunge": 1.0,
         }
 
         # Plank hold tracking
@@ -157,7 +163,9 @@ class RepCounter:
         r_hip = hip_angle(lm, "right")
         avg = (l_hip + r_hip) / 2.0
 
-        is_holding = avg > 140
+        # Strict plank: body must be flat (155°–180°). Butt-in-air or hip-sag
+        # does NOT count as a valid plank hold.
+        is_holding = 155 < avg <= 180
 
         if is_holding and not self._plank_holding:
             # Start hold
