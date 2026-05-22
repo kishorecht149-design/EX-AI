@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Exercise Coach</title>
+  
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+  
+  <!-- MediaPipe JS SDK from stable jsDelivr CDNs -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  
+  <!-- Custom Premium Styles -->
+  <style>
+    :root {
+      --bg: #090514;
+      --panel-bg: rgba(255, 255, 255, 0.03);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --glass-glow: rgba(167, 139, 250, 0.15);
+      
+      --purple: #a78bfa;
+      --pink: #f472b6;
+      --green: #4ade80;
+      --orange: #fb923c;
+      --blue: #3b82f6;
+      
+      --text: #f1f0f7;
+      --text-muted: #cbd5e1;
+      --text-dark: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 90% 10%, rgba(236, 72, 153, 0.08) 0%, transparent 35%),
+        radial-gradient(circle at 50% 80%, rgba(59, 130, 246, 0.08) 0%, transparent 40%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--panel-border);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(9, 5, 20, 0.7);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, var(--purple), var(--pink));
+      color: #fff;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      padding: 0.4rem 0.8rem;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      letter-spacing: 1px;
+      box-shadow: 0 4px 15px rgba(167, 139, 250, 0.4);
+    }
+
+    .logo-text {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 1.6rem;
+      background: linear-gradient(135deg, #ffffff 40%, var(--purple) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 0.5rem;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 0.3rem;
+      border-radius: 14px;
+      border: 1px solid var(--panel-border);
+    }
+
+    .nav-tab {
+      padding: 0.6rem 1.4rem;
+      border-radius: 11px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-dark);
+      transition: all 0.25s ease;
+      border: none;
+      background: transparent;
+    }
+
+    .nav-tab:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .nav-tab.active {
+      color: #fff;
+      background: linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(244, 114, 182, 0.1) 100%);
+      border: 1px solid rgba(167, 139, 250, 0.3);
+      box-shadow: 0 4px 15px rgba(167, 139, 250, 0.1);
+    }
+
+    main {
+      flex: 1;
+      max-width: 1400px;
+      width: 100%;
+      margin: 2rem auto;
+      padding: 0 2rem;
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.4s ease-out forwards;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Glass Cards */
+    .glass-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 24px;
+      padding: 1.8rem;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .glass-card:hover {
+      border-color: rgba(167, 139, 250, 0.2);
+      box-shadow: 0 20px 55px rgba(167, 139, 250, 0.05);
+    }
+
+    /* Live Monitor Layout */
+    .monitor-grid {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    .video-viewport {
+      position: relative;
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--panel-border);
+      background: #000;
+      width: 100%;
+      aspect-ratio: 4/3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+    }
+
+    #webcam-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* Mirror camera */
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    #webcam-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* Mirror canvas skeleton rendering */
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .viewport-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(9, 5, 20, 0.85);
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.2rem;
+      padding: 2rem;
+      text-align: center;
+      transition: opacity 0.3s ease;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(167, 139, 250, 0.1);
+      border-top: 3px solid var(--purple);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      box-shadow: 0 0 15px rgba(167, 139, 250, 0.2);
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .overlay-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .overlay-text {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 320px;
+      line-height: 1.5;
+    }
+
+    /* Live Controls */
+    .controls-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .control-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    /* Custom Streamlit-looking forms */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--purple);
+    }
+
+    select, input, .custom-select {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 0.8rem 1rem;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 500;
+      outline: none;
+      transition: all 0.2s;
+      width: 100%;
+    }
+
+    select:focus, input:focus {
+      border-color: rgba(167, 139, 250, 0.4);
+      background: rgba(255, 255, 255, 0.07);
+      box-shadow: 0 0 15px rgba(167, 139, 250, 0.1);
+    }
+
+    /* Modern Neon Buttons */
+    .btn {
+      background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 0.85rem 1.5rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(124, 58, 237, 0.45);
+      background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      box-shadow: none;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-danger:hover {
+      background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+      box-shadow: 0 8px 20px rgba(239, 68, 68, 0.45);
+    }
+
+    /* Metric Cards Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .metric-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--purple);
+      font-weight: 700;
+    }
+
+    .metric-value {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.7rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    /* Coaching Feedback Box */
+    .feedback-box {
+      border-radius: 16px;
+      padding: 1.2rem;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--panel-border);
+      min-height: 120px;
+    }
+
+    .feedback-header {
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--pink);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .feedback-list {
+      list-style-type: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .feedback-item {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .feedback-item::before {
+      content: "!";
+      background: rgba(251, 146, 60, 0.15);
+      color: var(--orange);
+      border: 1px solid rgba(251, 146, 60, 0.3);
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.65rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .feedback-empty {
+      color: var(--green);
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-weight: 600;
+    }
+
+    .feedback-empty::before {
+      content: "✓";
+      background: rgba(74, 222, 128, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(74, 222, 128, 0.3);
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    /* File upload tabs design */
+    .upload-zone {
+      border: 2px dashed rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.01);
+      border-radius: 20px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .upload-zone:hover {
+      border-color: var(--purple);
+      background: rgba(167, 139, 250, 0.02);
+    }
+
+    .upload-icon {
+      font-size: 3rem;
+      background: linear-gradient(135deg, var(--purple), var(--pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .upload-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .upload-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-dark);
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    /* Review details layout */
+    .review-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 2rem;
+      margin-top: 2rem;
+      animation: fadeIn 0.4s ease-out forwards;
+    }
+
+    .review-preview-card {
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--panel-border);
+      aspect-ratio: 4/3;
+      background: #05020c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .review-preview-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .upload-loading {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 3rem 0;
+    }
+
+    /* Status badge style */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.35rem 0.8rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid transparent;
+    }
+
+    .status-badge-waiting {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-dark);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .status-badge-correct {
+      background: rgba(74, 222, 128, 0.1);
+      color: var(--green);
+      border-color: rgba(74, 222, 128, 0.2);
+    }
+
+    .status-badge-adjust {
+      background: rgba(251, 146, 60, 0.1);
+      color: var(--orange);
+      border-color: rgba(251, 146, 60, 0.2);
+    }
+
+    .status-badge-loading {
+      background: rgba(167, 139, 250, 0.1);
+      color: var(--purple);
+      border-color: rgba(167, 139, 250, 0.2);
+    }
+    
+    .status-badge-excellent {
+      background: linear-gradient(135deg, rgba(244, 114, 182, 0.15), rgba(167, 139, 250, 0.15));
+      color: #ff9ee2;
+      border-color: rgba(244, 114, 182, 0.3);
+    }
+
+    /* Extra troubleshooting tip box */
+    .tips-box {
+      border-radius: 16px;
+      padding: 1.2rem;
+      background: rgba(167, 139, 250, 0.03);
+      border: 1px solid rgba(167, 139, 250, 0.12);
+      margin-top: 1rem;
+    }
+
+    .tips-title {
+      font-weight: 800;
+      color: var(--purple);
+      font-size: 0.9rem;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .tips-list {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      padding-left: 1.2rem;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-badge">EX-AI</div>
+      <div class="logo-text">Exercise Coach</div>
+    </div>
+    
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('live')">Live Monitor</button>
+      <button class="nav-tab" onclick="switchTab('image')">Image Review</button>
+      <button class="nav-tab" onclick="switchTab('video')">Video Review</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============================================== -->
+    <!-- TAB 1: LIVE MONITOR -->
+    <!-- ============================================== -->
+    <div id="live-tab" class="tab-content active">
+      <div class="monitor-grid">
+        <div class="glass-card" style="padding: 1.2rem;">
+          <div class="video-viewport">
+            <video id="webcam-video" autoplay playsinline muted></video>
+            <canvas id="webcam-canvas"></canvas>
+            
+            <div id="viewport-overlay" class="viewport-overlay">
+              <div id="overlay-spinner" class="spinner"></div>
+              <div id="overlay-title" class="overlay-title">Camera Access Required</div>
+              <div id="overlay-text" class="overlay-text">
+                Please click <strong>Activate Camera</strong> below and allow browser camera permissions to begin live coaching.
+              </div>
+              <button id="activate-cam-btn" class="btn" onclick="startCamera()">
+                Activate Camera
+              </button>
+            </div>
+          </div>
+          
+          <div class="tips-box">
+            <div class="tips-title">💡 Pure Browser Capture</div>
+            <ul class="tips-list">
+              <li><strong>Zero Networking Latency:</strong> All image capture and skeletal overlays are processed inside your browser locally at 60 FPS.</li>
+              <li><strong>No Hangs:</strong> Unlike WebRTC, this doesn't stream video over the web, making it completely immune to network blockages and signaling timeouts!</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="controls-panel">
+          <div class="glass-card">
+            <div style="display: flex; flex-direction: column; gap: 1.2rem;">
+              <div class="control-row">
+                <div class="form-group">
+                  <label class="form-label" for="exercise-picker">Target Workout</label>
+                  <select id="exercise-picker" onchange="configureSession()">
+                    <option value="Squat">Squat</option>
+                    <option value="Pushup">Pushup</option>
+                    <option value="Lunge">Lunge</option>
+                    <option value="Plank">Plank</option>
+                    <option value="Auto detect">Auto Detect</option>
+                  </select>
+                </div>
+                
+                <div class="form-group" style="justify-content: flex-end;">
+                  <button id="session-toggle-btn" class="btn" onclick="toggleSession()" disabled>
+                    Start Session
+                  </button>
+                </div>
+              </div>
+              
+              <div style="display: flex; gap: 1rem; align-items: center; background: rgba(255,255,255,0.02); padding: 0.8rem 1rem; border-radius: 12px; border: 1px solid var(--panel-border);">
+                <div style="flex: 1;">
+                  <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--purple); font-weight: 700; letter-spacing: 0.05em;">Session status</div>
+                  <div id="session-status-text" style="font-size: 1.05rem; font-weight: 800; color: #fff; margin-top: 0.1rem;">Camera Offline</div>
+                </div>
+                <div id="session-badge" class="status-badge status-badge-waiting">OFFLINE</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div style="display: flex; flex-direction: column; gap: 1.2rem;">
+              <div class="metrics-grid">
+                <div class="metric-card" style="border-color: rgba(255, 219, 88, 0.15); background: rgba(255, 219, 88, 0.01);">
+                  <div class="metric-label" style="color: #ffdb58;">Reps Count / Hold</div>
+                  <div id="metric-reps" class="metric-value" style="color: #ffdb58;">0</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Exercise Detected</div>
+                  <div id="metric-exercise" class="metric-value">—</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Form Quality</div>
+                  <div id="metric-form" class="metric-value">—</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Form Score</div>
+                  <div id="metric-score" class="metric-value">0%</div>
+                </div>
+              </div>
+
+              <div class="feedback-box">
+                <div class="feedback-header">
+                  <span>ℹ</span> Real-time Posture Corrections
+                </div>
+                <div id="feedback-container">
+                  <div class="feedback-empty">Stand in full-body view to begin postural assessment.</div>
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1.35fr 1fr; gap: 1rem;">
+                <div style="display: flex; gap: 0.8rem; flex-direction: column; justify-content: center; font-size: 0.82rem; color: var(--text-dark); padding-left: 0.3rem;">
+                  <div>Proper Reps: <span id="proper-reps" style="color:#fff; font-weight:700;">0</span></div>
+                  <div>Needs Work: <span id="needs-work-reps" style="color:#fff; font-weight:700;">0</span></div>
+                </div>
+                <button id="reset-counter-btn" class="btn btn-secondary" onclick="resetSession()" disabled>
+                  Reset Counts
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- TAB 2: IMAGE REVIEW -->
+    <!-- ============================================== -->
+    <div id="image-tab" class="tab-content">
+      <div class="glass-card">
+        <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 700; margin-bottom: 0.6rem;">Upload Photo</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">
+          Upload a high-fidelity JPG or PNG photo showing a full-body side view or front view. The system will analyze keyangles and diagnose any postural errors immediately.
+        </p>
+
+        <div class="upload-zone" onclick="document.getElementById('image-file-input').click()">
+          <div class="upload-icon">📷</div>
+          <div class="upload-title">Drag & Drop Image or Click to Browse</div>
+          <div class="upload-subtitle">Supports JPEG, PNG up to 10MB</div>
+          <input type="file" id="image-file-input" class="file-input" accept="image/*" onchange="handleImageUpload(this.files[0])">
+        </div>
+
+        <div id="image-loading" class="upload-loading">
+          <div class="spinner"></div>
+          <div style="font-weight: 600;">Analyzing keypoint angles and posture...</div>
+        </div>
+
+        <div id="image-results" class="review-grid" style="display: none;">
+          <div class="review-preview-card">
+            <img id="image-result-preview" class="review-preview-img" src="" alt="Pose Overlay Preview">
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <div class="glass-card" style="padding: 1.5rem; background: rgba(255,255,255,0.01);">
+              <div class="form-group" style="gap: 1.2rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <div class="form-label">Exercise Detected</div>
+                    <div id="image-res-exercise" style="font-family:'Outfit', sans-serif; font-size:1.6rem; font-weight:800; margin-top:0.2rem;">SQUAT</div>
+                  </div>
+                  <div id="image-res-badge" class="status-badge status-badge-correct">CORRECT</div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; border-top:1px solid var(--panel-border); padding-top:1.2rem;">
+                  <div>
+                    <div class="form-label">Confidence</div>
+                    <div id="image-res-confidence" style="font-size:1.3rem; font-weight:700; color:#fff; margin-top:0.1rem;">98%</div>
+                  </div>
+                  <div>
+                    <div class="form-label">Form Score</div>
+                    <div id="image-res-score" style="font-size:1.3rem; font-weight:700; color:#fff; margin-top:0.1rem;">95/100</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="feedback-box">
+              <div class="feedback-header" style="color: var(--pink)">
+                <span>ℹ</span> Posture Feedback
+              </div>
+              <div id="image-feedback-container">
+                <div class="feedback-empty">No major form issues detected.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- TAB 3: VIDEO REVIEW -->
+    <!-- ============================================== -->
+    <div id="video-tab" class="tab-content">
+      <div class="glass-card">
+        <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 700; margin-bottom: 0.6rem;">Upload Video Clip</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">
+          Upload a short video clip (MP4, MOV, AVI) showing a complete set of reps.
+        </p>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; align-items: center;">
+          <div class="upload-zone" onclick="document.getElementById('video-file-input').click()" style="padding: 2.5rem 2rem;">
+            <div class="upload-icon">🎥</div>
+            <div class="upload-title">Drag & Drop Video or Click to Browse</div>
+            <div class="upload-subtitle">Supports MP4, MOV, AVI, WEBM</div>
+            <input type="file" id="video-file-input" class="file-input" accept="video/*" onchange="handleVideoUpload(this.files[0])">
+          </div>
+          
+          <div class="glass-card" style="padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem;">
+            <div class="form-group">
+              <label class="form-label" for="sample-slider">Sampling Interval (Frames)</label>
+              <div style="display: flex; gap: 0.8rem; align-items: center;">
+                <input type="range" id="sample-slider" min="5" max="30" value="10" style="flex:1;" oninput="document.getElementById('sample-val').innerText = this.value">
+                <span id="sample-val" style="font-weight: 700; font-size: 1rem; width: 25px;">10</span>
+              </div>
+              <div style="font-size: 0.75rem; color: var(--text-dark); line-height: 1.4; margin-top: 0.2rem;">
+                Higher values process fewer frames, running the analysis significantly faster.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="video-loading" class="upload-loading">
+          <div class="spinner"></div>
+          <div style="font-weight: 600;">Processing video frames and extracting joint keypoints...</div>
+        </div>
+
+        <div id="video-results" class="review-grid" style="display: none;">
+          <div class="review-preview-card">
+            <img id="video-result-preview" class="review-preview-img" src="" alt="Sampled Frame Preview">
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <div class="glass-card" style="padding: 1.5rem; background: rgba(255,255,255,0.01);">
+              <div class="form-group" style="gap: 1.2rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <div class="form-label">Primary Exercise</div>
+                    <div id="video-res-exercise" style="font-family:'Outfit', sans-serif; font-size:1.6rem; font-weight:800; margin-top:0.2rem;">SQUAT</div>
+                  </div>
+                  <div id="video-res-badge" class="status-badge status-badge-correct">CORRECT</div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; border-top:1px solid var(--panel-border); padding-top:1.2rem;">
+                  <div>
+                    <div class="form-label">Avg Confidence</div>
+                    <div id="video-res-confidence" style="font-size:1.3rem; font-weight:700; color:#fff; margin-top:0.1rem;">95%</div>
+                  </div>
+                  <div>
+                    <div class="form-label">Frames Sampled</div>
+                    <div id="video-res-frames" style="font-size:1.3rem; font-weight:700; color:#fff; margin-top:0.1rem;">24/48</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="feedback-box">
+              <div class="feedback-header" style="color: var(--pink)">
+                <span>ℹ</span> Top Postural Issues Flagged
+              </div>
+              <div id="video-feedback-container">
+                <div class="feedback-empty">No major form issues detected in the analyzed set.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============================================== -->
+  <!-- CLIENT-SIDE APP LOGIC & MEDIAPIPE SDK -->
+  <!-- ============================================== -->
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.nav-tab').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      
+      const tabButton = Array.from(document.querySelectorAll('.nav-tab')).find(btn => btn.textContent.toLowerCase().includes(tabId));
+      if (tabButton) tabButton.classList.add('active');
+      
+      const activeTabContent = document.getElementById(`${tabId}-tab`);
+      if (activeTabContent) activeTabContent.classList.add('active');
+      
+      // If we leave the live tab, stop webcam stream to save resource usage
+      if (tabId !== 'live' && isCameraRunning) {
+        stopCamera();
+      }
+    }
+
+    // -------------------------------------------------------------
+    // LIVE CAMERA STATE VARIABLES
+    // -------------------------------------------------------------
+    let isCameraRunning = false;
+    let localStream = null;
+    let cameraHelper = null;
+    let poseInstance = null;
+    let sessionActive = false;
+    
+    // Canvas context
+    const video = document.getElementById('webcam-video');
+    const canvas = document.getElementById('webcam-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Frame processing frequency limiter to prevent HTTP floods (process every N frames)
+    let frameCounter = 0;
+    const processEveryNFrames = 2; // ~15 FPS post requests at 30 FPS camera
+    let lastFetchTime = 0;
+    const minFetchIntervalMs = 70; // Hard max of 14 requests/sec to conserve CPU
+    let isFetching = false;
+
+    // -------------------------------------------------------------
+    // START CAMERA & INITIALIZE MEDIAPIPE CLIENT-SIDE
+    // -------------------------------------------------------------
+    async function startCamera() {
+      const overlay = document.getElementById('viewport-overlay');
+      const spinner = document.getElementById('overlay-spinner');
+      const title = document.getElementById('overlay-title');
+      const text = document.getElementById('overlay-text');
+      const actBtn = document.getElementById('activate-cam-btn');
+
+      // Update overlay UI to loading state
+      spinner.style.display = 'block';
+      title.innerText = 'Initializing Pose Engine...';
+      text.innerText = 'Acquiring browser camera and loading Wasm/WebGL MediaPipe models...';
+      actBtn.style.display = 'none';
+
+      try {
+        // 1. Get browser camera stream
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user'
+          },
+          audio: false
+        });
+        
+        video.srcObject = localStream;
+        isCameraRunning = true;
+        
+        // Wait for video to render
+        await new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            video.play();
+            // Set canvas resolutions to match the video dimensions
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            resolve();
+          };
+        });
+        
+        video.style.opacity = '1';
+
+        // 2. Initialize MediaPipe Pose Client
+        if (!poseInstance) {
+          poseInstance = new Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+          });
+          
+          poseInstance.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+          });
+          
+          // Connect result listener
+          poseInstance.onResults(handlePoseResults);
+        }
+
+        // 3. Start Camera Capture Loop
+        cameraHelper = new Camera(video, {
+          onFrame: async () => {
+            if (isCameraRunning) {
+              await poseInstance.send({ image: video });
+            }
+          },
+          width: video.videoWidth,
+          height: video.videoHeight
+        });
+        
+        await cameraHelper.start();
+        
+        // Hide viewport blocker overlay
+        overlay.style.opacity = '0';
+        setTimeout(() => { overlay.style.display = 'none'; }, 300);
+        
+        // Enable buttons
+        document.getElementById('session-toggle-btn').removeAttribute('disabled');
+        document.getElementById('reset-counter-btn').removeAttribute('disabled');
+        
+        updateSessionUIState("Ready", "Waiting");
+
+      } catch (err) {
+        console.error(err);
+        spinner.style.display = 'none';
+        title.innerText = 'Camera Activation Failed';
+        text.innerHTML = `<span style="color:var(--orange);">Error: ${err.message || 'Camera blocked'}</span><br><br>Please verify camera hardware and privacy permissions in your browser or Mac System Settings.`;
+        actBtn.style.display = 'inline-block';
+        actBtn.innerText = 'Retry Connection';
+      }
+    }
+
+    // -------------------------------------------------------------
+    // STOP CAMERA
+    // -------------------------------------------------------------
+    function stopCamera() {
+      isCameraRunning = false;
+      
+      if (cameraHelper) {
+        cameraHelper.stop();
+      }
+      
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      
+      video.style.opacity = '0';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Show overlay again
+      const overlay = document.getElementById('viewport-overlay');
+      const spinner = document.getElementById('overlay-spinner');
+      const title = document.getElementById('overlay-title');
+      const text = document.getElementById('overlay-text');
+      const actBtn = document.getElementById('activate-cam-btn');
+      
+      overlay.style.display = 'flex';
+      overlay.style.opacity = '1';
+      spinner.style.display = 'none';
+      title.innerText = 'Camera Access Required';
+      text.innerText = 'Please click Activate Camera below and allow browser camera permissions to begin live coaching.';
+      actBtn.style.display = 'inline-block';
+      actBtn.innerText = 'Activate Camera';
+      
+      // Disable buttons
+      document.getElementById('session-toggle-btn').setAttribute('disabled', 'true');
+      document.getElementById('reset-counter-btn').setAttribute('disabled', 'true');
+      
+      updateSessionUIState("Offline", "Offline");
+    }
+
+    // -------------------------------------------------------------
+    // LOCAL HIGH-PERFORMANCE SKELETON DRAWER (0 LAG)
+    // -------------------------------------------------------------
+    function handlePoseResults(results) {
+      if (!isCameraRunning) return;
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const landmarks = results.poseLandmarks;
+      if (!landmarks) {
+        // Draw warning if no person is detected
+        ctx.fillStyle = "rgba(251, 146, 60, 0.85)";
+        ctx.font = "bold 16px 'Plus Jakarta Sans', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("⚠️ Move into frame so full body is visible", canvas.width / 2, 40);
+        return;
+      }
+      
+      // Draw Connections (Skeleton Limbs)
+      const POSE_CONNECTIONS = [
+        [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], // Upper body
+        [11, 23], [12, 24], [23, 24], // Torso
+        [23, 25], [24, 26], [25, 27], [26, 28], // Limbs
+        [27, 29], [28, 30], [29, 31], [30, 32], [27, 31], [28, 32] // Feet
+      ];
+
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      // Draw joint connection lines
+      POSE_CONNECTIONS.forEach(([start, end]) => {
+        const p1 = landmarks[start];
+        const p2 = landmarks[end];
+        
+        // Only draw connection if visibility is high
+        if (p1 && p2 && p1.visibility > 0.45 && p2.visibility > 0.45) {
+          ctx.beginPath();
+          ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
+          ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
+          
+          // Cool glassmorphic neon-purple connection glow
+          ctx.strokeStyle = "rgba(192, 132, 252, 0.8)";
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = "#c084fc";
+          ctx.stroke();
+        }
+      });
+      
+      // Reset shadows for dots
+      ctx.shadowBlur = 0;
+
+      // Draw Keypoint Joint Dots
+      landmarks.forEach((lm, idx) => {
+        // Draw core joints
+        if (lm.visibility > 0.45 && idx >= 11) {
+          ctx.beginPath();
+          ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 5.5, 0, 2 * Math.PI);
+          ctx.fillStyle = "#f472b6"; // Glowing pink keypoint dots
+          ctx.fill();
+          
+          // Draw thin white core
+          ctx.beginPath();
+          ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 2, 0, 2 * Math.PI);
+          ctx.fillStyle = "#ffffff";
+          ctx.fill();
+        }
+      });
+
+      // -------------------------------------------------------------
+      // UPLOAD LANDMARKS TO SERVER FOR ML CLASSIFICATION & FORM RULES
+      // -------------------------------------------------------------
+      frameCounter++;
+      const now = Date.now();
+      
+      if (frameCounter % processEveryNFrames === 0 && (now - lastFetchTime) >= minFetchIntervalMs && !isFetching) {
+        isFetching = true;
+        lastFetchTime = now;
+        
+        // Format landmarks strictly matching (33, 4) structure: [x, y, z, visibility]
+        const formatted = landmarks.map(lm => [
+          lm.x,
+          lm.y,
+          lm.z || 0.0,
+          lm.visibility || 0.0
+        ]);
+        
+        const selectedExercise = document.getElementById('exercise-picker').value;
+
+        fetch('/api/analyze_landmarks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            landmarks: formatted,
+            selected_exercise: selectedExercise,
+            session_active: sessionActive
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          isFetching = false;
+          updateDashboardUI(data);
+        })
+        .catch(err => {
+          isFetching = false;
+          console.error("Analysis HTTP POST error:", err);
+        });
+      }
+    }
+
+    // -------------------------------------------------------------
+    // DYNAMIC SESSION AND DASHBOARD CONTROLS
+    // -------------------------------------------------------------
+    function toggleSession() {
+      const btn = document.getElementById('session-toggle-btn');
+      
+      if (!sessionActive) {
+        // START SESSION
+        sessionActive = true;
+        btn.innerText = "End Session";
+        btn.classList.add('btn-danger');
+        
+        updateSessionUIState("Active", "Active");
+        
+        // Request reset on backend to ensure counter starts fresh
+        resetSession();
+      } else {
+        // END SESSION
+        sessionActive = false;
+        btn.innerText = "Start Session";
+        btn.classList.remove('btn-danger');
+        
+        updateSessionUIState("Ready", "Ended");
+        
+        // End session on backend to freeze rep status
+        fetch('/api/reset_session?freeze=true', { method: 'POST' });
+      }
+    }
+
+    function configureSession() {
+      const selected = document.getElementById('exercise-picker').value;
+      fetch('/api/reset_session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selected_exercise: selected,
+          session_active: sessionActive
+        })
+      });
+    }
+
+    function resetSession() {
+      const selected = document.getElementById('exercise-picker').value;
+      fetch('/api/reset_session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selected_exercise: selected,
+          session_active: sessionActive
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        updateDashboardUI(data);
+      });
+    }
+
+    function updateSessionUIState(statusText, badgeState) {
+      document.getElementById('session-status-text').innerText = statusText;
+      const badge = document.getElementById('session-badge');
+      badge.innerText = badgeState;
+      
+      // Update badge style class
+      badge.className = "status-badge";
+      if (badgeState === "Active") {
+        badge.classList.add('status-badge-excellent');
+      } else if (badgeState === "Ended") {
+        badge.classList.add('status-badge-adjust');
+      } else if (badgeState === "Waiting") {
+        badge.classList.add('status-badge-loading');
+      } else {
+        badge.className = "status-badge status-badge-waiting";
+      }
+    }
+
+    // -------------------------------------------------------------
+    // UPDATE DASHBOARD METRICS WITH API RESULTS
+    // -------------------------------------------------------------
+    function updateDashboardUI(metrics) {
+      // 1. Update Core values
+      document.getElementById('metric-reps').innerText = metrics.rep_status.replace("Reps: ", "");
+      document.getElementById('metric-exercise').innerText = metrics.exercise.toUpperCase();
+      document.getElementById('metric-form').innerText = metrics.form.toUpperCase();
+      document.getElementById('metric-score').innerText = Math.round(metrics.form_score) + "%";
+      
+      document.getElementById('proper-reps').innerText = metrics.proper_reps;
+      document.getElementById('needs-work-reps').innerText = metrics.needs_work_reps;
+
+      // Update Form Value color based on correctness
+      const formVal = document.getElementById('metric-form');
+      if (metrics.form === "correct") {
+        formVal.style.color = "var(--green)";
+      } else if (metrics.form === "incorrect") {
+        formVal.style.color = "var(--orange)";
+      } else {
+        formVal.style.color = "#fff";
+      }
+
+      // Update Form Score color
+      const scoreVal = document.getElementById('metric-score');
+      if (metrics.form_score >= 80) scoreVal.style.color = "var(--green)";
+      else if (metrics.form_score >= 60) scoreVal.style.color = "var(--purple)";
+      else scoreVal.style.color = "var(--orange)";
+
+      // Update Session status Text if active
+      if (sessionActive && metrics.session_seconds > 0) {
+        document.getElementById('session-status-text').innerText = `Active (${Math.round(metrics.session_seconds)}s)`;
+      }
+
+      // 2. Postural correction checklists
+      const feedbackContainer = document.getElementById('feedback-container');
+      if (metrics.pose_detected) {
+        if (metrics.feedback && metrics.feedback.length > 0) {
+          let listHTML = '<ul class="feedback-list">';
+          metrics.feedback.slice(0, 4).forEach(msg => {
+            listHTML += `<li class="feedback-item">${msg}</li>`;
+          });
+          listHTML += '</ul>';
+          feedbackContainer.innerHTML = listHTML;
+        } else {
+          feedbackContainer.innerHTML = `<div class="feedback-empty">No major posture issues detected. Looking strong!</div>`;
+        }
+      } else {
+        feedbackContainer.innerHTML = `<div class="feedback-empty" style="color:var(--text-dark);">Stand in full-body view to begin postural assessment.</div>`;
+      }
+    }
+
+    // -------------------------------------------------------------
+    // IMAGE REVIEW SYSTEM
+    // -------------------------------------------------------------
+    function handleImageUpload(file) {
+      if (!file) return;
+      
+      const uploader = document.querySelector('#image-tab .upload-zone');
+      const loader = document.getElementById('image-loading');
+      const results = document.getElementById('image-results');
+      
+      uploader.style.display = 'none';
+      loader.style.display = 'flex';
+      results.style.display = 'none';
+      
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      fetch('/api/analyze_image', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        loader.style.display = 'none';
+        if (data.error) {
+          alert(`Analysis Error: ${data.error}`);
+          uploader.style.display = 'flex';
+          return;
+        }
+        
+        // Show Image Results
+        results.style.display = 'grid';
+        document.getElementById('image-result-preview').src = `data:image/jpeg;base64,${data.annotated_image}`;
+        document.getElementById('image-res-exercise').innerText = data.exercise.toUpperCase();
+        document.getElementById('image-res-confidence').innerText = Math.round(data.confidence * 100) + "%";
+        
+        // Score & badge styling
+        const score = data.form_score || (data.form === "correct" ? 95 : 45);
+        document.getElementById('image-res-score').innerText = `${Math.round(score)}/100`;
+        
+        const badge = document.getElementById('image-res-badge');
+        badge.innerText = data.form.toUpperCase();
+        badge.className = "status-badge";
+        if (data.form === "correct") {
+          badge.classList.add('status-badge-correct');
+        } else {
+          badge.classList.add('status-badge-adjust');
+        }
+        
+        // Feedback items
+        const feedbackContainer = document.getElementById('image-feedback-container');
+        if (data.feedback && data.feedback.length > 0) {
+          let listHTML = '<ul class="feedback-list">';
+          data.feedback.forEach(msg => {
+            listHTML += `<li class="feedback-item">${msg}</li>`;
+          });
+          listHTML += '</ul>';
+          feedbackContainer.innerHTML = listHTML;
+        } else {
+          feedbackContainer.innerHTML = `<div class="feedback-empty">No major posture issues detected. Correct form!</div>`;
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        loader.style.display = 'none';
+        uploader.style.display = 'flex';
+        alert("Failed to analyze image. Please ensure a full body pose is clearly visible.");
+      });
+    }
+
+    // -------------------------------------------------------------
+    // VIDEO REVIEW SYSTEM
+    // -------------------------------------------------------------
+    function handleVideoUpload(file) {
+      if (!file) return;
+      
+      const uploader = document.querySelector('#video-tab .upload-zone');
+      const loader = document.getElementById('video-loading');
+      const results = document.getElementById('video-results');
+      const sliderVal = document.getElementById('sample-slider').value;
+      
+      uploader.style.display = 'none';
+      loader.style.display = 'flex';
+      results.style.display = 'none';
+      
+      const formData = new FormData();
+      formData.append('video', file);
+      formData.append('sample_every', sliderVal);
+      
+      fetch('/api/analyze_video', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        loader.style.display = 'none';
+        if (data.error) {
+          alert(`Analysis Error: ${data.error}`);
+          uploader.style.display = 'flex';
+          return;
+        }
+        
+        // Show Video Results
+        results.style.display = 'grid';
+        
+        // Use preview base64 image or fallback icon
+        if (data.preview_frame) {
+          document.getElementById('video-result-preview').src = `data:image/jpeg;base64,${data.preview_frame}`;
+        }
+        
+        document.getElementById('video-res-exercise').innerText = data.exercise.toUpperCase();
+        document.getElementById('video-res-confidence').innerText = Math.round(data.confidence * 100) + "%";
+        document.getElementById('video-res-frames').innerText = `${data.detected_frames}/${data.sampled_frames}`;
+        
+        const badge = document.getElementById('video-res-badge');
+        badge.innerText = data.form.toUpperCase();
+        badge.className = "status-badge";
+        if (data.form === "correct") {
+          badge.classList.add('status-badge-correct');
+        } else {
+          badge.classList.add('status-badge-adjust');
+        }
+        
+        // Feedback items
+        const feedbackContainer = document.getElementById('video-feedback-container');
+        if (data.common_feedback && data.common_feedback.length > 0) {
+          let listHTML = '<ul class="feedback-list">';
+          data.common_feedback.forEach(msg => {
+            listHTML += `<li class="feedback-item">${msg}</li>`;
+          });
+          listHTML += '</ul>';
+          feedbackContainer.innerHTML = listHTML;
+        } else {
+          feedbackContainer.innerHTML = `<div class="feedback-empty">No major posture issues detected. Strong set!</div>`;
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        loader.style.display = 'none';
+        uploader.style.display = 'flex';
+        alert("Failed to process video clip. Please check the format and length.");
+      });
+    }
+  </script>
+</body>
+</html>

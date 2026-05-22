@@ -396,6 +396,75 @@ class LiveExerciseMonitor:
             return "Adjust"
         return "Correct form"
 
+    def process_landmarks(self, landmarks_list: list, selected_exercise: str, session_active: bool) -> LiveMetrics:
+        """Analyze pre-extracted landmarks directly from the client side."""
+        landmarks = np.array(landmarks_list)
+        
+        selected = self._normalise_exercise_name(selected_exercise)
+        with self._lock:
+            # Dynamically configure if selected exercise or session state changed
+            if selected != self.selected_exercise or session_active != self.session_active:
+                self.configure(selected_exercise, session_active)
+        
+        # Core pipeline matching process_frame
+        features = extract_features(landmarks)
+        probabilities = self._smooth_probabilities(
+            self.classifier.get_probabilities(features)
+        )
+
+        if self.selected_exercise != "auto":
+            exercise, form, confidence = self._resolve_selected_prediction(
+                probabilities, self.selected_exercise
+            )
+        else:
+            label = max(probabilities, key=probabilities.get)
+            confidence = probabilities[label]
+            exercise, form = ExerciseClassifier.parse_label(label)
+
+        raw_feedback = self.form_analyzer.analyze(exercise, landmarks)
+        feedback = self._stabilize_feedback(raw_feedback)
+        form_score = self.form_analyzer.get_form_score(exercise, landmarks)
+        self._form_score_history.append(form_score)
+        smoothed_form_score = sum(self._form_score_history) / len(self._form_score_history)
+        status_badge = self._status_from_score(smoothed_form_score, confidence, True)
+
+        previous_count = self.rep_counter.count
+        if self.session_active:
+            count_exercise = exercise if self.selected_exercise == "auto" else self.selected_exercise
+            self.rep_counter.update(landmarks, count_exercise)
+            if self.rep_counter.count > previous_count:
+                if smoothed_form_score >= 75:
+                    self._proper_reps += 1
+                else:
+                    self._needs_work_reps += 1
+
+        session_seconds = (
+            time.time() - self._session_started_at
+            if self.session_active and self._session_started_at is not None
+            else 0.0
+        )
+
+        metrics = LiveMetrics(
+            exercise=exercise,
+            form=form,
+            confidence=confidence,
+            feedback=feedback,
+            rep_status=self.rep_counter.get_status(),
+            pose_detected=True,
+            session_active=self.session_active,
+            selected_exercise=self.selected_exercise,
+            form_score=smoothed_form_score,
+            proper_reps=self._proper_reps,
+            needs_work_reps=self._needs_work_reps,
+            session_seconds=session_seconds,
+            status_badge=status_badge,
+        )
+
+        with self._lock:
+            self.metrics = metrics
+
+        return metrics
+
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
         """Analyze and annotate a live BGR frame."""
         if self.detector is None:

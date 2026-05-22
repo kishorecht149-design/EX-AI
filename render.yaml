@@ -3,7 +3,7 @@ services:
     name: ex-ai
     runtime: python
     buildCommand: pip install -r requirements.txt && python dataset/generate_synthetic.py --samples 300 && python train_model.py --n-estimators 120 && python -c "from src.runtime_assets import ensure_runtime_assets; ensure_runtime_assets()"
-    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
