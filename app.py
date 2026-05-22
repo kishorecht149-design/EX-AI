@@ -540,12 +540,12 @@ with live_tab:
             ice_profile = st.selectbox(
                 "ICE Connection Profile",
                 [
-                    "Google STUN (Recommended - Fastest)",
-                    "Metered TURN Relay (Strict Firewalls)",
+                    "Metered TURN Relay (Recommended - Deployed)",
+                    "Google STUN (Fastest - Local)",
                     "Minimal / Localhost (Offline)",
                 ],
                 index=0,
-                help="STUN is direct and fastest. TURN tunnels traffic when behind corporate firewalls.",
+                help="STUN is direct and fastest. TURN tunnels traffic over TCP/TLS port 443 when deployed.",
             )
         with col_res:
             quality_profile = st.selectbox(
@@ -680,8 +680,20 @@ with live_tab:
             needs_work_reps = 0
             status_badge = "Waiting"
         render_live_metric_cards(Waiting(), st.session_state.selected_workout)
-        metrics_placeholder.info(
-            "Allow camera access and press Start to begin live monitoring."
+        metrics_placeholder.markdown(
+            """
+            <div class="glass-card" style="margin-top: 1rem; border-color: rgba(167, 139, 250, 0.45); box-shadow: 0 8px 30px rgba(167, 139, 250, 0.15);">
+                <div style="font-weight: 800; color: #c084fc; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>💡</span> Deployed Camera Startup & Troubleshooting Tips
+                </div>
+                <ul style="font-size: 0.9rem; color: #cbd5e1; padding-left: 1.2rem; margin: 0; line-height: 1.6;">
+                    <li><strong>How to Start:</strong> Click the <strong>Start</strong> button in the video window above, and allow camera access when prompted by the browser.</li>
+                    <li><strong>Safari / macOS Users:</strong> If the screen stays black or hangs on <em>"Connecting"</em>, ensure the settings below are set to <strong>Metered TURN Relay (Recommended - Deployed)</strong>. This tunnels WebRTC successfully through Render's firewall over secure TCP port 443.</li>
+                    <li><strong>Camera Green Indicator:</strong> When Safari shows the green camera icon in the menu bar, WebRTC is active. The stream will begin playing shortly!</li>
+                </ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
     st.button(
