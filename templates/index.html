@@ -175,6 +175,36 @@
       align-items: start;
     }
 
+    /* Floating Glow Orbs for modern background blur */
+    .glow-orb {
+      position: absolute;
+      width: 450px;
+      height: 450px;
+      border-radius: 50%;
+      filter: blur(140px);
+      pointer-events: none;
+      z-index: -1;
+      opacity: 0.15;
+    }
+    .orb-1 {
+      background: var(--purple);
+      top: 15%;
+      left: -150px;
+      animation: drift 25s ease-in-out infinite alternate;
+    }
+    .orb-2 {
+      background: var(--pink);
+      bottom: 15%;
+      right: -150px;
+      animation: drift 30s ease-in-out infinite alternate-reverse;
+    }
+    @keyframes drift {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(120px, 80px) scale(1.15); }
+      100% { transform: translate(60px, 160px) scale(0.9); }
+    }
+
+    /* Video Viewport active states for posture feedback */
     .video-viewport {
       position: relative;
       border-radius: 20px;
@@ -187,6 +217,74 @@
       align-items: center;
       justify-content: center;
       box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .video-viewport.form-correct {
+      border-color: rgba(74, 222, 128, 0.6);
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 0 25px rgba(74, 222, 128, 0.25);
+    }
+
+    .video-viewport.form-incorrect {
+      border-color: rgba(251, 146, 60, 0.6);
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 0 25px rgba(251, 146, 60, 0.25);
+    }
+
+    /* Pulse animation for dynamic rep counting cards */
+    @keyframes cardPulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 rgba(167, 139, 250, 0); }
+      50% { transform: scale(1.04); box-shadow: 0 0 15px rgba(167, 139, 250, 0.25); }
+      100% { transform: scale(1); box-shadow: 0 0 0 rgba(167, 139, 250, 0); }
+    }
+    .pulse-anim {
+      animation: cardPulse 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+      border-color: var(--purple) !important;
+    }
+
+    /* Voice coaching switch styling */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.05);
+      transition: .3s;
+      border: 1px solid var(--panel-border);
+      border-radius: 22px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: var(--text-dark);
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: var(--purple);
+      border-color: rgba(167, 139, 250, 0.4);
+    }
+    input:checked + .slider:before {
+      transform: translateX(22px);
+      background-color: #fff;
+      box-shadow: 0 0 6px #fff;
     }
 
     #webcam-video {
@@ -616,6 +714,9 @@
   </style>
 </head>
 <body>
+  <!-- Decorative background elements -->
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
 
   <header>
     <div class="logo-container">
@@ -684,6 +785,24 @@
                 </div>
               </div>
               
+              <!-- Voice Assistant Toggle -->
+              <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(167, 139, 250, 0.05); padding: 0.8rem 1rem; border-radius: 12px; border: 1px solid rgba(167, 139, 250, 0.15);">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <span style="font-size: 1.1rem;">🔊</span>
+                  <div>
+                    <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--purple); letter-spacing: 0.05em;">Voice Assistant</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.1rem;">Speaks your reps & posture fixes aloud</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <label class="switch">
+                    <input type="checkbox" id="voice-toggle" onchange="toggleVoiceCoaching()">
+                    <span class="slider"></span>
+                  </label>
+                  <span id="voice-status-text" style="font-size: 0.85rem; font-weight: 700; color: var(--text-dark); min-width: 45px; text-align: right;">MUTED</span>
+                </div>
+              </div>
+
               <div style="display: flex; gap: 1rem; align-items: center; background: rgba(255,255,255,0.02); padding: 0.8rem 1rem; border-radius: 12px; border: 1px solid var(--panel-border);">
                 <div style="flex: 1;">
                   <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--purple); font-weight: 700; letter-spacing: 0.05em;">Session status</div>
@@ -924,6 +1043,62 @@
     let lastFetchTime = 0;
     const minFetchIntervalMs = 70; // Hard max of 14 requests/sec to conserve CPU
     let isFetching = false;
+
+    // -------------------------------------------------------------
+    // AUDIO VOICE COACHING (SPEECH SYNTHESIS)
+    // -------------------------------------------------------------
+    let voiceCoachingActive = false;
+    let lastSpokenRepCount = 0;
+    let lastSpokenFeedback = "";
+    let lastSpeechTime = 0;
+
+    function toggleVoiceCoaching() {
+      const checkbox = document.getElementById('voice-toggle');
+      voiceCoachingActive = checkbox.checked;
+      const statusText = document.getElementById('voice-status-text');
+      if (voiceCoachingActive) {
+        statusText.innerText = "ACTIVE";
+        statusText.style.color = "var(--purple)";
+        speakMessage("Voice coaching activated. Ready to begin!");
+      } else {
+        statusText.innerText = "MUTED";
+        statusText.style.color = "var(--text-dark)";
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+        }
+      }
+    }
+
+    // Trigger voice pre-warming so voices load in browser early
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+      }
+    }
+
+    function speakMessage(msg) {
+      if (!voiceCoachingActive || !('speechSynthesis' in window)) return;
+      
+      const now = Date.now();
+      // Throttle speech slightly to prevent stutter overlaps
+      if (now - lastSpeechTime < 1300) return; 
+
+      window.speechSynthesis.cancel(); // Cancel current playing text
+
+      const utterance = new SpeechSynthesisUtterance(msg);
+      utterance.rate = 1.08; // slightly faster for coaching cues
+      utterance.pitch = 1.0;
+      
+      const voices = window.speechSynthesis.getVoices();
+      const englishVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Samantha') || v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Microsoft')));
+      if (englishVoice) {
+        utterance.voice = englishVoice;
+      }
+
+      lastSpeechTime = now;
+      window.speechSynthesis.speak(utterance);
+    }
 
     // -------------------------------------------------------------
     // START CAMERA & INITIALIZE MEDIAPIPE CLIENT-SIDE
@@ -1247,6 +1422,9 @@
     // -------------------------------------------------------------
     function updateDashboardUI(metrics) {
       // 1. Update Core values
+      const prevRepsText = document.getElementById('metric-reps').innerText;
+      const prevReps = parseInt(prevRepsText) || 0;
+      
       document.getElementById('metric-reps').innerText = metrics.rep_status.replace("Reps: ", "");
       document.getElementById('metric-exercise').innerText = metrics.exercise.toUpperCase();
       document.getElementById('metric-form').innerText = metrics.form.toUpperCase();
@@ -1276,7 +1454,63 @@
         document.getElementById('session-status-text').innerText = `Active (${Math.round(metrics.session_seconds)}s)`;
       }
 
-      // 2. Postural correction checklists
+      // 2. Active feedback glowing borders on video viewport
+      const viewport = document.querySelector('.video-viewport');
+      if (viewport) {
+        if (metrics.pose_detected) {
+          if (metrics.form === "correct") {
+            viewport.className = "video-viewport form-correct";
+          } else if (metrics.form === "incorrect") {
+            viewport.className = "video-viewport form-incorrect";
+          } else {
+            viewport.className = "video-viewport";
+          }
+        } else {
+          viewport.className = "video-viewport";
+        }
+      }
+
+      // 3. Audio Voice Coaching and Rep Incrementation Animation
+      const currentReps = parseInt(metrics.rep_status.replace("Reps: ", "")) || 0;
+      if (currentReps > lastSpokenRepCount) {
+        // Trigger voice announcement
+        speakMessage(`Rep ${currentReps}`);
+        lastSpokenRepCount = currentReps;
+        
+        // Trigger neon scaling pulse animation on the Rep Card
+        const repCard = document.getElementById('metric-reps').parentElement;
+        if (repCard) {
+          repCard.classList.remove('pulse-anim');
+          void repCard.offsetWidth; // Trigger reflow to restart animation
+          repCard.classList.add('pulse-anim');
+          setTimeout(() => repCard.classList.remove('pulse-anim'), 500);
+        }
+      } else if (currentReps === 0 && metrics.session_seconds < 2) {
+        // Reset count if session is restarted
+        lastSpokenRepCount = 0;
+      }
+
+      // 4. Voice correction speech feedback
+      if (metrics.pose_detected) {
+        if (metrics.feedback && metrics.feedback.length > 0) {
+          const topFeedback = metrics.feedback[0];
+          if (topFeedback !== lastSpokenFeedback) {
+            // Delay voice correction slightly so it doesn't collide with the rep count cue
+            setTimeout(() => {
+              if (voiceCoachingActive && topFeedback === metrics.feedback[0] && currentReps === lastSpokenRepCount) {
+                speakMessage(topFeedback);
+              }
+            }, 800);
+            lastSpokenFeedback = topFeedback;
+          }
+        } else {
+          lastSpokenFeedback = "";
+        }
+      } else {
+        lastSpokenFeedback = "";
+      }
+
+      // 5. Postural correction checklists rendering
       const feedbackContainer = document.getElementById('feedback-container');
       if (metrics.pose_detected) {
         if (metrics.feedback && metrics.feedback.length > 0) {
