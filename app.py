@@ -359,14 +359,54 @@ class LiveCameraProcessor(VideoProcessorBase):
         super().__init__()
         if bootstrap_error is not None:
             raise RuntimeError(bootstrap_error)
-        self.monitor = LiveExerciseMonitor()
+        self.monitor = None
         self._applied_counter_version = -1
+        self._pending_exercise = "auto"
+        self._pending_session_active = False
+        self._pending_reset = False
+
+        # Load models in a background daemon thread to avoid SignallingTimeoutError (10s limit)
+        import threading
+        self._loading_thread = threading.Thread(target=self._load_monitor_background, daemon=True)
+        self._loading_thread.start()
+
+    def _load_monitor_background(self) -> None:
+        try:
+            # Instantiate LiveExerciseMonitor (which loads mediapipe & sklearn models from disk)
+            monitor = LiveExerciseMonitor()
+            
+            # Apply any pending configuration settings made by Streamlit during load
+            monitor.configure(self._pending_exercise, self._pending_session_active)
+            if self._pending_reset:
+                monitor.reset_session()
+                self._pending_reset = False
+            
+            # Swap in the fully loaded monitor
+            self.monitor = monitor
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         try:
+            if self.monitor is not None:
+                image = frame.to_ndarray(format="bgr24")
+                annotated = self.monitor.process_frame(image)
+                return av.VideoFrame.from_ndarray(annotated, format="bgr24")
+            
+            # Draw an interactive glassmorphic loading panel while models load in the background
             image = frame.to_ndarray(format="bgr24")
-            annotated = self.monitor.process_frame(image)
-            return av.VideoFrame.from_ndarray(annotated, format="bgr24")
+            h, w, _ = image.shape
+            overlay = image.copy()
+            cv2.rectangle(overlay, (12, 12), (min(480, w - 12), 125), (62, 42, 99), -1)
+            cv2.addWeighted(overlay, 0.65, image, 0.35, 0, image)
+
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            cv2.putText(image, "AI EXERCISE COACH", (26, 42), font, 0.65, (238, 225, 255), 2, cv2.LINE_AA)
+            cv2.putText(image, "Initializing AI models in background...", (26, 72), font, 0.50, (200, 200, 255), 1, cv2.LINE_AA)
+            cv2.putText(image, "Please wait a moment...", (26, 98), font, 0.50, (180, 180, 255), 1, cv2.LINE_AA)
+
+            return av.VideoFrame.from_ndarray(image, format="bgr24")
         except Exception as exc:  # noqa: BLE001
             # Never let a processing error kill the WebRTC stream.
             # Log and pass the original frame through untouched.
@@ -375,27 +415,50 @@ class LiveCameraProcessor(VideoProcessorBase):
             return frame
 
     def get_metrics(self):
-        return self.monitor.get_metrics()
+        if self.monitor is not None:
+            return self.monitor.get_metrics()
+        
+        # Not loaded yet, return a safe loading metrics object
+        from src.web_pipeline import LiveMetrics
+        return LiveMetrics(
+            exercise="initializing...",
+            form="loading",
+            confidence=0.0,
+            feedback=["AI models are loading in the background...", "Please stand by..."],
+            rep_status="Reps: 0",
+            pose_detected=False,
+            session_active=self._pending_session_active,
+            selected_exercise=self._pending_exercise,
+            status_badge="Loading AI...",
+        )
 
     def configure(self, selected_exercise: str, session_active: bool) -> None:
-        self.monitor.configure(selected_exercise, session_active)
+        self._pending_exercise = selected_exercise
+        self._pending_session_active = session_active
+        if self.monitor is not None:
+            self.monitor.configure(selected_exercise, session_active)
 
     def end_session(self) -> None:
-        self.monitor.end_session()
+        self._pending_session_active = False
+        if self.monitor is not None:
+            self.monitor.end_session()
 
     def reset_session(self) -> None:
-        self.monitor.reset_session()
+        self._pending_reset = True
+        if self.monitor is not None:
+            self.monitor.reset_session()
+            self._pending_reset = False
 
     def reset_session_if_needed(self, counter_version: int) -> None:
         if counter_version != self._applied_counter_version:
-            self.monitor.reset_session()
+            self.reset_session()
             self._applied_counter_version = counter_version
 
     def has_detector(self) -> bool:
-        return self.monitor.detector is not None
+        return self.monitor is not None and self.monitor.detector is not None
 
     def get_detector_error(self) -> str | None:
-        return self.monitor.detector_error
+        return self.monitor.detector_error if self.monitor is not None else None
 
 
 if "selected_workout" not in st.session_state:
