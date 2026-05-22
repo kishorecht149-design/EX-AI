@@ -33,107 +33,250 @@ except Exception as exc:
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+    /* Global overrides */
     .stApp {
         background:
-            radial-gradient(circle at 10% 10%, rgba(238, 214, 255, 0.9) 0%, transparent 24%),
-            radial-gradient(circle at 90% 0%, rgba(212, 229, 255, 0.78) 0%, transparent 28%),
-            radial-gradient(circle at 80% 90%, rgba(224, 200, 255, 0.55) 0%, transparent 22%),
-            linear-gradient(180deg, #faf5ff 0%, #f3ecff 45%, #efe8ff 100%);
-        color: #24163a;
+            radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
+            radial-gradient(circle at 90% 10%, rgba(236, 72, 153, 0.12) 0%, transparent 35%),
+            radial-gradient(circle at 50% 80%, rgba(59, 130, 246, 0.12) 0%, transparent 40%),
+            #090514;
+        color: #f1f0f7;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
     }
+
+    /* Ensure all streamlit text elements use the font */
+    .stApp h1, .stApp h2, .stApp h3, .stApp p, .stApp span, .stApp label, .stApp button, .stApp select {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+    }
+
+    /* Custom Hero Section */
     .hero {
         position: relative;
         overflow: hidden;
-        padding: 1.5rem 1.6rem;
-        border-radius: 30px;
-        background: linear-gradient(135deg, rgba(255,255,255,0.38), rgba(255,255,255,0.16));
-        border: 1px solid rgba(255, 255, 255, 0.44);
-        box-shadow: 0 24px 70px rgba(111, 76, 168, 0.18);
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
-        margin-bottom: 1rem;
+        padding: 2.2rem 2rem;
+        border-radius: 24px;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        margin-bottom: 2rem;
     }
     .kicker {
-        letter-spacing: 0.14em;
+        letter-spacing: 0.16em;
         text-transform: uppercase;
-        font-size: 0.75rem;
-        color: #8d56d6;
+        font-size: 0.8rem;
+        color: #a78bfa;
         font-weight: 700;
+        margin-bottom: 0.5rem;
     }
     .hero h1 {
-        font-size: 3.15rem;
-        margin: 0.2rem 0 0.5rem 0;
-        font-family: Georgia, "Times New Roman", serif;
-        color: #34185f;
+        font-size: 3.5rem !important;
+        font-weight: 800 !important;
+        margin: 0 0 0.8rem 0;
+        background: linear-gradient(135deg, #ffffff 30%, #c084fc 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
     .hero p {
-        font-size: 1.05rem;
+        font-size: 1.1rem;
         max-width: 52rem;
-        color: #563f7a;
+        color: #cbd5e1;
+        line-height: 1.6;
     }
+
+    /* Glass Card */
     .glass-card {
-        background: linear-gradient(135deg, rgba(255,255,255,0.42), rgba(255,255,255,0.16));
-        border: 1px solid rgba(255,255,255,0.46);
-        border-radius: 24px;
-        padding: 1rem 1.1rem;
-        box-shadow: 0 18px 48px rgba(111, 76, 168, 0.14);
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 1.5rem;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
+        transition: transform 0.3s ease, border-color 0.3s ease;
     }
-    .status-chip {
-        display: inline-block;
-        padding: 0.45rem 0.8rem;
-        border-radius: 999px;
-        background: rgba(143, 91, 255, 0.13);
-        color: #6638c7;
-        font-weight: 700;
-        border: 1px solid rgba(143, 91, 255, 0.18);
+    .glass-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(167, 139, 250, 0.25);
     }
+
+    /* Dumbbell Animation Styling */
     .dumbbell-shell {
         position: absolute;
         top: 24px;
-        right: 24px;
-        width: 126px;
-        height: 126px;
+        right: 32px;
+        width: 130px;
+        height: 130px;
         border-radius: 50%;
-        background: radial-gradient(circle, rgba(255,255,255,0.34), rgba(255,255,255,0.02));
+        background: radial-gradient(circle, rgba(167, 139, 250, 0.15), transparent 70%);
         display: flex;
         align-items: center;
         justify-content: center;
     }
     .dumbbell {
         position: relative;
-        width: 92px;
-        height: 18px;
-        background: linear-gradient(90deg, #8b5cf6, #d7b8ff, #8b5cf6);
+        width: 90px;
+        height: 16px;
+        background: linear-gradient(90deg, #a78bfa, #f472b6, #a78bfa);
         border-radius: 999px;
-        animation: dumbbell-bob 2.8s ease-in-out infinite;
-        box-shadow: 0 10px 24px rgba(120, 75, 184, 0.24);
+        animation: dumbbell-bob 3s ease-in-out infinite;
+        box-shadow: 0 8px 24px rgba(167, 139, 250, 0.3);
     }
     .dumbbell::before,
     .dumbbell::after {
         content: "";
         position: absolute;
-        top: -14px;
-        width: 18px;
-        height: 46px;
-        border-radius: 8px;
-        background: linear-gradient(180deg, #6f42c1, #d8bcff);
+        top: -12px;
+        width: 16px;
+        height: 40px;
+        border-radius: 6px;
+        background: linear-gradient(180deg, #8b5cf6, #ec4899);
         box-shadow:
-            10px 0 0 0 rgba(111, 66, 193, 0.96),
-            20px 0 0 0 rgba(216, 188, 255, 0.92);
+            8px 0 0 0 rgba(139, 92, 246, 0.8),
+            16px 0 0 0 rgba(236, 72, 153, 0.8);
     }
-    .dumbbell::before { left: -28px; }
+    .dumbbell::before { left: -24px; }
     .dumbbell::after {
-        right: -28px;
+        right: -24px;
         box-shadow:
-            -10px 0 0 0 rgba(111, 66, 193, 0.96),
-            -20px 0 0 0 rgba(216, 188, 255, 0.92);
+            -8px 0 0 0 rgba(139, 92, 246, 0.8),
+            -16px 0 0 0 rgba(236, 72, 153, 0.8);
     }
+
     @keyframes dumbbell-bob {
         0% { transform: translateY(0px) rotate(-8deg); }
         50% { transform: translateY(-10px) rotate(8deg); }
         100% { transform: translateY(0px) rotate(-8deg); }
+    }
+
+    /* Status Chip */
+    .status-chip {
+        display: inline-block;
+        padding: 0.45rem 1rem;
+        border-radius: 999px;
+        background: rgba(167, 139, 250, 0.1);
+        color: #c084fc;
+        font-weight: 700;
+        border: 1px solid rgba(167, 139, 250, 0.2);
+        font-size: 0.85rem;
+    }
+
+    /* Streamlit Button Overrides */
+    div.stButton > button {
+        background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 0.6rem 1.5rem !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3) !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        width: 100% !important;
+        height: auto !important;
+    }
+    div.stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 20px rgba(124, 58, 237, 0.45) !important;
+        background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%) !important;
+    }
+    div.stButton > button:active {
+        transform: translateY(1px) !important;
+        box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2) !important;
+    }
+    /* Specifically target the Reset button to have a secondary style */
+    div.stButton > button[key*="reset"] {
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: #f1f0f7 !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        box-shadow: none !important;
+    }
+    div.stButton > button[key*="reset"]:hover {
+        background: rgba(255, 255, 255, 0.12) !important;
+        border-color: rgba(255, 255, 255, 0.25) !important;
+    }
+
+    /* Streamlit Native Selectbox & Form Inputs */
+    div[data-baseweb="select"] {
+        background-color: rgba(255, 255, 255, 0.04) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px !important;
+        color: #ffffff !important;
+    }
+    div[data-baseweb="select"] > div {
+        background-color: transparent !important;
+        border: none !important;
+        color: #ffffff !important;
+    }
+    div[data-baseweb="select"] span {
+        color: #ffffff !important;
+    }
+    ul[role="listbox"] {
+        background-color: #110c22 !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-radius: 12px !important;
+    }
+    ul[role="listbox"] li {
+        color: #e2e8f0 !important;
+        transition: background-color 0.2s;
+    }
+    ul[role="listbox"] li:hover {
+        background-color: rgba(167, 139, 250, 0.15) !important;
+    }
+
+    /* Streamlit Tabs Overrides */
+    button[data-baseweb="tab"] {
+        font-weight: 600 !important;
+        color: #94a3b8 !important;
+        border-bottom: 2px solid transparent !important;
+        transition: all 0.2s !important;
+        background-color: transparent !important;
+    }
+    button[data-baseweb="tab"]:hover {
+        color: #ffffff !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #c084fc !important;
+        border-bottom: 2px solid #a78bfa !important;
+    }
+
+    /* File Uploader styling */
+    section[data-testid="stFileUploader"] {
+        background: rgba(255, 255, 255, 0.02) !important;
+        border: 1px dashed rgba(255, 255, 255, 0.15) !important;
+        border-radius: 16px !important;
+        padding: 1.5rem !important;
+    }
+    section[data-testid="stFileUploader"] [data-testid="stFileUploadDropzone"] {
+        background: transparent !important;
+        border: none !important;
+    }
+
+    /* Metric styling */
+    div[data-testid="stMetricValue"] {
+        font-size: 2.2rem !important;
+        font-weight: 800 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stMetricLabel"] {
+        font-size: 0.85rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.08em !important;
+        color: #94a3b8 !important;
+    }
+
+    /* Video/Image captions and titles */
+    .stApp h3 {
+        font-weight: 700 !important;
+        color: #ffffff !important;
+        margin-top: 1.5rem !important;
+    }
+    .stApp label {
+        font-weight: 600 !important;
+        color: #e2e8f0 !important;
     }
     </style>
     """,
@@ -171,8 +314,8 @@ def render_live_metric_cards(metrics, selected_workout: str) -> None:
             st.markdown(
                 f"""
                 <div class="glass-card">
-                    <div style="font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:#8a72ba;">{label}</div>
-                    <div style="font-size:1.3rem; font-weight:800; color:#34185f; margin-top:0.2rem;">{value}</div>
+                    <div style="font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:#a78bfa; font-weight:600;">{label}</div>
+                    <div style="font-size:1.4rem; font-weight:800; color:#ffffff; margin-top:0.2rem;">{value}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -356,18 +499,18 @@ with live_tab:
         <div class="glass-card" style="margin-bottom:1rem;">
             <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
                 <div>
-                    <div style="font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:#8a72ba;">Selected workout</div>
-                    <div style="font-size:1.25rem; font-weight:800; color:#34185f;">{st.session_state.selected_workout}</div>
+                    <div style="font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:#a78bfa; font-weight:600;">Selected workout</div>
+                    <div style="font-size:1.25rem; font-weight:800; color:#ffffff;">{st.session_state.selected_workout}</div>
                 </div>
                 <div>
-                    <div style="font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:#8a72ba;">Session state</div>
-                    <div style="font-size:1.25rem; font-weight:800; color:#34185f;">
+                    <div style="font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:#a78bfa; font-weight:600;">Session state</div>
+                    <div style="font-size:1.25rem; font-weight:800; color:#ffffff;">
                         {st.session_state.session_status}
                     </div>
                 </div>
                 <div>
-                    <div style="font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:#8a72ba;">How it works</div>
-                    <div style="font-size:1rem; color:#5a3f8a;">Choose workout, start once, end to freeze the final count.</div>
+                    <div style="font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:#a78bfa; font-weight:600;">How it works</div>
+                    <div style="font-size:1rem; color:#cbd5e1;">Choose workout, start once, end to freeze the final count.</div>
                 </div>
             </div>
         </div>
@@ -415,10 +558,10 @@ with live_tab:
             <div class="glass-card" style="margin-top:1rem;">
                 <div style="display:flex; gap:0.8rem; align-items:center; flex-wrap:wrap;">
                     <span class="status-chip">{metrics.status_badge}</span>
-                    <span style="font-weight:700; color:#5a3f8a;">Form: {metrics.form.title()}</span>
-                    <span style="font-weight:700; color:#5a3f8a;">Confidence: {metrics.confidence:.0%}</span>
-                    <span style="font-weight:700; color:#5a3f8a;">Form score: {metrics.form_score:.0f}/100</span>
-                    <span style="font-weight:700; color:#5a3f8a;">Session: {metrics.session_seconds:.1f}s</span>
+                    <span style="font-weight:700; color:#cbd5e1;">Form: {metrics.form.title()}</span>
+                    <span style="font-weight:700; color:#cbd5e1;">Confidence: {metrics.confidence:.0%}</span>
+                    <span style="font-weight:700; color:#cbd5e1;">Form score: {metrics.form_score:.0f}/100</span>
+                    <span style="font-weight:700; color:#cbd5e1;">Session: {metrics.session_seconds:.1f}s</span>
                 </div>
             </div>
             """,
