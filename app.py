@@ -378,6 +378,9 @@ with live_tab:
     ctx = webrtc_streamer(
         key="exercise-live-monitor",
         mode=WebRtcMode.SENDRECV,
+        rtc_configuration={
+            "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+        },
         media_stream_constraints={
             "video": {
                 "width": {"ideal": 960},
