@@ -9,7 +9,7 @@ import atexit
 import av
 import cv2
 import streamlit as st
-from streamlit_webrtc import WebRtcMode, webrtc_streamer
+from streamlit_webrtc import WebRtcMode, webrtc_streamer, RTCConfiguration, VideoProcessorBase
 
 from src.runtime_assets import ensure_runtime_assets
 from src.web_pipeline import ExerciseAnalyzer, LiveExerciseMonitor
@@ -352,10 +352,11 @@ def show_video_result(result) -> None:
         st.markdown(format_feedback(result.common_feedback))
 
 
-class LiveCameraProcessor:
+class LiveCameraProcessor(VideoProcessorBase):
     """WebRTC processor that runs the live exercise monitor."""
 
     def __init__(self) -> None:
+        super().__init__()
         if bootstrap_error is not None:
             raise RuntimeError(bootstrap_error)
         self.monitor = LiveExerciseMonitor()
@@ -525,37 +526,109 @@ with live_tab:
         unsafe_allow_html=True,
     )
 
-    ctx = webrtc_streamer(
-        key="exercise-live-monitor",
-        mode=WebRtcMode.SENDRECV,
-        rtc_configuration={
+    with st.expander("🌐 Advanced WebRTC / Camera Settings"):
+        st.markdown(
+            """
+            <div style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.8rem;">
+                Adjust these settings if the camera stream hangs on "Connecting" or fails to load.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        col_ice, col_res = st.columns(2)
+        with col_ice:
+            ice_profile = st.selectbox(
+                "ICE Connection Profile",
+                [
+                    "Google STUN (Recommended - Fastest)",
+                    "Metered TURN Relay (Strict Firewalls)",
+                    "Minimal / Localhost (Offline)",
+                ],
+                index=0,
+                help="STUN is direct and fastest. TURN tunnels traffic when behind corporate firewalls.",
+            )
+        with col_res:
+            quality_profile = st.selectbox(
+                "Camera Quality",
+                [
+                    "Standard (Compatible)",
+                    "HD Quality (720p)",
+                    "Low Bandwidth (360p)",
+                ],
+                index=0,
+                help="Standard is highly compatible. HD provides sharper details.",
+            )
+
+    # 1. Build dynamic RTC configuration
+    if "Google" in ice_profile:
+        selected_rtc_config = RTCConfiguration({
             "iceServers": [
-                # STUN only — no credentials
                 {"urls": ["stun:stun.l.google.com:19302"]},
                 {"urls": ["stun:stun1.l.google.com:19302"]},
                 {"urls": ["stun:stun2.l.google.com:19302"]},
+                {"urls": ["stun:stun3.l.google.com:19302"]},
+                {"urls": ["stun:stun4.l.google.com:19302"]},
+                {"urls": ["stun:stun.sipgate.net:3478"]},
+            ]
+        })
+    elif "Metered" in ice_profile:
+        selected_rtc_config = RTCConfiguration({
+            "iceServers": [
+                {"urls": ["stun:stun.l.google.com:19302"]},
                 {"urls": ["stun:openrelay.metered.ca:80"]},
-                # TURN servers — credentials required
                 {
-                    "urls": "turn:openrelay.metered.ca:80",
+                    "urls": ["turn:openrelay.metered.ca:80"],
                     "username": "openrelayproject",
                     "credential": "openrelayproject",
                 },
                 {
-                    "urls": "turn:openrelay.metered.ca:443",
+                    "urls": ["turn:openrelay.metered.ca:443"],
                     "username": "openrelayproject",
                     "credential": "openrelayproject",
                 },
                 {
-                    "urls": "turn:openrelay.metered.ca:443?transport=tcp",
+                    "urls": ["turn:openrelay.metered.ca:443?transport=tcp"],
+                    "username": "openrelayproject",
+                    "credential": "openrelayproject",
+                },
+                {
+                    "urls": ["turns:openrelay.metered.ca:443?transport=tcp"],
                     "username": "openrelayproject",
                     "credential": "openrelayproject",
                 },
             ]
-        },
-        # Keep constraints maximally compatible — no ideal dimensions that
-        # could throw OverconstrainedError on Safari / mobile / old cameras.
-        media_stream_constraints={"video": True, "audio": False},
+        })
+    else:
+        selected_rtc_config = None
+
+    # 2. Build dynamic Media Stream Constraints
+    if "HD" in quality_profile:
+        selected_constraints = {
+            "video": {
+                "width": {"ideal": 1280},
+                "height": {"ideal": 720},
+            },
+            "audio": False,
+        }
+    elif "Low" in quality_profile:
+        selected_constraints = {
+            "video": {
+                "width": {"ideal": 640},
+                "height": {"ideal": 360},
+            },
+            "audio": False,
+        }
+    else:
+        selected_constraints = {
+            "video": True,
+            "audio": False,
+        }
+
+    ctx = webrtc_streamer(
+        key="exercise-live-monitor",
+        mode=WebRtcMode.SENDRECV,
+        rtc_configuration=selected_rtc_config,
+        media_stream_constraints=selected_constraints,
         async_processing=True,
         video_processor_factory=LiveCameraProcessor,
     )
