@@ -609,31 +609,26 @@ with live_tab:
 
 with image_tab:
     st.subheader("Single image review")
-    upload_analyzer = get_upload_analyzer()
-    if upload_analyzer.detector is None:
-        st.error(
-            "Image review is unavailable because the pose detector could not start in "
-            f"this runtime: {upload_analyzer.detector_error}"
-        )
     upload = st.file_uploader(
         "Upload a JPG or PNG image", type=["jpg", "jpeg", "png"], key="image-upload"
     )
-    if upload is not None and upload_analyzer.detector is not None:
-        with st.spinner("Analyzing image..."):
-            result = upload_analyzer.analyze_image_bytes(upload.getvalue())
-        if result is None:
-            st.error("No pose was detected in that image. Try a clearer full-body photo.")
+    if upload is not None:
+        upload_analyzer = get_upload_analyzer()
+        if upload_analyzer.detector is None:
+            st.error(
+                "Image review is unavailable because the pose detector could not start in "
+                f"this runtime: {upload_analyzer.detector_error}"
+            )
         else:
-            show_frame_result(result)
+            with st.spinner("Analyzing image..."):
+                result = upload_analyzer.analyze_image_bytes(upload.getvalue())
+            if result is None:
+                st.error("No pose was detected in that image. Try a clearer full-body photo.")
+            else:
+                show_frame_result(result)
 
 with video_tab:
     st.subheader("Short video review")
-    upload_analyzer = get_upload_analyzer()
-    if upload_analyzer.detector is None:
-        st.error(
-            "Video review is unavailable because the pose detector could not start in "
-            f"this runtime: {upload_analyzer.detector_error}"
-        )
     upload = st.file_uploader(
         "Upload a short MP4, MOV, AVI, MKV, or WEBM clip",
         type=["mp4", "mov", "avi", "mkv", "webm"],
@@ -646,9 +641,16 @@ with video_tab:
         value=10,
         help="Higher values analyze fewer frames and run faster.",
     )
-    if upload is not None and upload_analyzer.detector is not None:
-        with st.spinner("Analyzing video..."):
-            result = upload_analyzer.analyze_video_file(
-                upload.getvalue(), sample_every=sample_every
+    if upload is not None:
+        upload_analyzer = get_upload_analyzer()
+        if upload_analyzer.detector is None:
+            st.error(
+                "Video review is unavailable because the pose detector could not start in "
+                f"this runtime: {upload_analyzer.detector_error}"
             )
-        show_video_result(result)
+        else:
+            with st.spinner("Analyzing video..."):
+                result = upload_analyzer.analyze_video_file(
+                    upload.getvalue(), sample_every=sample_every
+                )
+            show_video_result(result)
